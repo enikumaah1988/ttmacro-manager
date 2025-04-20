@@ -104,11 +104,14 @@ python bin/generate_ttl_macros.py
 
 ---
 
-### 6. TTLを選んで起動（オプション）
+### 6. TTLを選んで起動
 
 ```powershell
 python bin/run_launcher.py
 ```
+## 🖼 GUIランチャー画面イメージ
+
+![Tera Term GUIランチャー](images/launcher_gui.png)
 
 ---
 
