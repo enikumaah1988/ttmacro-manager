@@ -1,0 +1,61 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+
+# VSCode and other IDE settings
+.vscode/
+.idea/
+.cursor/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Excel output or runtime files
+data/servers.xlsx
+!data/servers_template.xlsx
+
+# TTL generated files
+macros/**/*.ttl
+!macros/template.ttl
+
+# SSH key files
+keys/*
+!keys/.gitkeep
+
+# Python cache
+*.pyo
+*.pyd
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# Installer files
+*.exe
+*.msi
+
+# Environment files
+.env
+
+# Logs
+logs/
+*.log
+
+# Excel output or runtime files
+data/servers.xlsx
+!data/servers_template.xlsx
+
+# TTL generated files
+macros/**/*.ttl
+!macros/template.ttl
+
+# SSH key files
+keys/*
