@@ -91,7 +91,7 @@ python bin/generate_ttl_macros.py
 ### 6. TTLを選んで起動（オプション）
 
 ```powershell
-python launcher/run_launcher.py
+python bin/run_launcher.py
 ```
 
 ---
