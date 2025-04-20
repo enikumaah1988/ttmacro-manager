@@ -1,0 +1,83 @@
+;=================================================
+; TTL作成日時 : {created_at}
+; 接続ユーザー : {username}
+; 接続ホスト   : {hostname}
+;=================================================
+
+name     = '{name}'
+hostname = '{hostname}'
+port     = '{port}'
+username = '{username}'
+password = '{password}'
+keyfile  = '{keyfile}'
+logspath = "{logspath}"
+;=================================================
+
+;; タイトルバーの設定
+ttl_name = name
+strconcat ttl_name '_'
+strconcat ttl_name username
+strconcat ttl_name '_'
+strconcat ttl_name hostname
+
+;; ログ出力先フルパスの設定
+gettime timestr '%Y%m%d_%H%M%S'
+logfile = ttl_name
+strconcat logfile '_'
+strconcat logfile timestr
+strconcat logfile '.log'
+logoutputpath = logspath
+strconcat logoutputpath logfile
+
+;; 接続設定
+command = hostname
+strconcat command ':'
+strconcat command port
+strconcat command ' /ssh /2'
+
+strcompare keyfile ''
+if result <> 0 then
+    ; 鍵認証
+    strconcat command ' /auth=publickey /user='
+    strconcat command username
+    strconcat command ' /keyfile='
+    strconcat command keyfile
+endif
+
+strcompare password ''
+if result <> 0 then
+    ; パスワード認証
+    strconcat command ' /auth=password /user='
+    strconcat command username
+    strconcat command ' /passwd='
+    strconcat command password
+endif
+
+;; 接続
+connect command
+if result <> 2 then
+  messagebox 'It could not be connected.' 'Connection Error'
+  end
+endif
+
+;; ログ出力
+logopen logoutputpath 0 0 1 1 1 0 1
+
+timeout = 5
+wait '$' '#'
+if result = 0 then 
+  end 
+endif
+
+;; タイトルバー
+settitle ttl_name
+
+;; 接続時コマンド実行
+sendln "date '+%Y/%m/%d %H:%M:%S'"
+sendln 'whoami'
+sendln 'uname -a'
+
+;; カスタムコマンド実行
+;; sendIn
+
+wait '$' '#'

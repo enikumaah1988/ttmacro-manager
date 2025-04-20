@@ -59,3 +59,4 @@ macros/**/*.ttl
 
 # SSH key files
 keys/*
+!keys/.gitkeep
