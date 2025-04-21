@@ -48,6 +48,7 @@ keys/*
 # Logs
 logs/
 *.log
+!logs/.gitkeep
 
 # config.ini
 bin/config.ini
