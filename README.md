@@ -24,10 +24,11 @@ ttmacro-manager/
 │   ├── servers_template.xlsx   # 公開用テンプレート
 │   └── servers.xlsx            # 実運用ファイル（Git管理外）
 ├── keys/                       # 鍵ファイル（Git管理外）
-├── macros/                     # .ttl 出力ディレクトリ（グループ別）
+├── macros/                     # .ttl 出力ディレクトリ（グループ別）（Git管理外）
+├── ├── template.ttl            # ttlマクロ生成用テンプレート
 ├── logs/
-│   ├── generate.log            # ログファイル（生成・エラーを記録）
-│   └── XXXXX.log               # ttl実行時のログ
+│   ├── generate.log            # ログファイル（生成・エラーを記録）（Git管理外）
+│   └── XXXXX.log               # ttl実行時のログ（Git管理外）
 ├── bin/
 │   ├── generate_ttl_macros.py  # TTLマクロ生成スクリプト
 │   ├── run_launcher.py         # TTLを選んで接続
@@ -54,6 +55,7 @@ python -m venv .venv
 ```
 
 仮想環境が有効になると、プロンプトが以下のようになります：
+※もし、実行時に以下表示にならず、Pythonと表示される場合、Windowsの設定を見直す必要あり。
 
 ```
 (.venv) C:\path\to\ttmacro-manager>
@@ -62,6 +64,10 @@ python -m venv .venv
 ---
 
 ### 3. 必要なライブラリをインストール
+
+インストール時にエラーが発生した場合、Visual StudioのC++デスクトップ開発環境をセットアップする必要あり。
+詳細は以下URLを参照。
+[Visual Studio に C および C++ サポートをインストールする](https://learn.microsoft.com/ja-jp/cpp/build/vscpp-step-0-installation?view=msvc-170)
 
 ```powershell
 pip install -r requirements.txt
@@ -117,6 +123,7 @@ python bin/run_launcher.py
 
 ## 今後の展望
 
+- exeファイル化し、python不要での実行
 - コメントや用途別テンプレートの自動適用
 - グループ変更時の旧ファイル削除機能
 - ttlマクロ自動ログイン時のサーバ固有のカスタムコマンド発行
@@ -124,6 +131,6 @@ python bin/run_launcher.py
 - 複数template.ttlの活用
 - マクロのバージョン管理
 　- 変更履歴の追跡
-　- 以前のバージョンに戻す。
+　- 以前のバージョンへの戻し
 - UI/UXの改善
 
