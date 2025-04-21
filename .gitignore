@@ -49,6 +49,9 @@ keys/*
 logs/
 *.log
 
+# config.ini
+bin/config.ini
+
 # Excel output or runtime files
 data/servers.xlsx
 !data/servers_template.xlsx
