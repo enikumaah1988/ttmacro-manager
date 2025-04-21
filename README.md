@@ -32,7 +32,8 @@ ttmacro-manager/
 ├── bin/
 │   ├── generate_ttl_macros.py  # TTLマクロ生成スクリプト
 │   ├── run_launcher.py         # TTLを選んで接続
-│   └── config.ini              # run_launcher.pyの設定ファイル
+│   └── config.ini              # run_launcher.pyの設定ファイル（Git管理外）
+│   └── config.ini.template     # run_launcher.pyの設定ファイルのテンプレート
 ├── requirements.txt            # ライブラリ一覧
 ├── .gitignore
 └── README.md
