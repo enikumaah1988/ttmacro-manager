@@ -54,7 +54,7 @@ python -m venv .venv
 .venv\Scripts\activate
 ```
 
-仮想環境が有効になると、プロンプトが以下のようになります：
+仮想環境が有効になると、プロンプトが以下のようになります：  
 ※もし、実行時に以下表示にならず、Pythonと表示される場合、Windowsの設定を見直す必要あり。
 
 ```
@@ -65,8 +65,8 @@ python -m venv .venv
 
 ### 3. 必要なライブラリをインストール
 
-インストール時にエラーが発生した場合、Visual StudioのC++デスクトップ開発環境をセットアップする必要あり。
-詳細は以下URLを参照。
+インストール時にエラーが発生した場合、Visual StudioのC++デスクトップ開発環境をセットアップする必要あり。  
+詳細は以下URLを参照。  
 [Visual Studio に C および C++ サポートをインストールする](https://learn.microsoft.com/ja-jp/cpp/build/vscpp-step-0-installation?view=msvc-170)
 
 ```powershell
@@ -129,8 +129,8 @@ python bin/run_launcher.py
 - ttlマクロ自動ログイン時のサーバ固有のカスタムコマンド発行
 - パスワード暗号化
 - 複数template.ttlの活用
-- マクロのバージョン管理
-　- 変更履歴の追跡
-　- 以前のバージョンへの戻し
+- マクロのバージョン管理  
+　- 変更履歴の追跡  
+　- 以前のバージョンへの戻し  
 - UI/UXの改善
 
