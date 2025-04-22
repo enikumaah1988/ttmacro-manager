@@ -50,8 +50,8 @@ logs/
 *.log
 !logs/.gitkeep
 
-# config.ini
-bin/config.ini
+# launcher config
+bin/launcher_config.json
 
 # Excel output or runtime files
 data/servers.xlsx
