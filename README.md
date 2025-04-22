@@ -27,8 +27,8 @@ ttmacro-manager/
 │   ├── servers_template.xlsx   # 公開用テンプレート
 │   └── servers.xlsx            # 実運用ファイル（Git管理外）
 ├── keys/                       # 鍵ファイル格納ディレクトリ
-│   └── <サーバのキ
-├── macros/                     # .ttl 出力ディレクトリ（グループ別）（Git管理外）
+│   └── xxxx.key                # サーバ認証鍵（Git管理外）
+├── macros/                     # .ttl 出力ディレクトリ（グループ別）（テンプレート以外はGit管理外）
 │   ├── template.ttl            # ttlマクロ生成用テンプレート
 │   └── [group1]/               # グループ別ディレクトリ
 │       └── [group2]/
@@ -109,6 +109,40 @@ copy data\servers_template.xlsx data\servers.xlsx
 - `post_cmd` は接続後に自動実行するコマンドを記載します。複数行の場合は改行で区切ります。
 - `memo` は接続情報のメモを記載します。TTLファイルのヘッダーに表示されます。
 
+#### ログファイルのフォーマット
+
+- `generate.log`: TTLマクロ生成時のログ
+  - 生成日時
+  - 生成されたTTLファイル名
+  - エラー情報（発生時）
+
+  ```
+  2024-03-15 14:30:22 - 生成開始
+  2024-03-15 14:30:22 - ✅ infra01_rocky_192.168.0.10.ttl を生成しました。
+  2024-03-15 14:30:22 - ✅ infra02_rocky_192.168.0.11.ttl を生成しました。
+  2024-03-15 14:30:22 - ✅ dev01_dev_192.168.0.12.ttl を生成しました。
+  2024-03-15 14:30:22 - ⏹️ 'e' を検出したため、処理を終了します。
+  ```
+
+- `XXXXX.log`: TTLマクロ実行時のログ
+  - ファイル名フォーマット: `{ttl_name}_{YYYYMMDD_HHMMSS}.log`
+  - 例: `infra01_rocky_192.168.0.10_20240315_143022.log`
+  - 接続情報
+  - 実行されたコマンド
+  - コマンドの出力結果
+
+  - ログ出力サンプル
+  ```  
+  [2024-03-15 14:30:22.123] [rocky@infra01 ~]$ date '+%Y/%m/%d %H:%M:%S'
+  2024/03/15 14:30:23
+  [2024-03-15 14:30:23.456] [rocky@infra01 ~]$ whoami
+  rocky
+  [2024-03-15 14:30:23.789] [rocky@infra01 ~]$ uname -a
+  Linux infra01 5.15.0-91-generic #101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+  [2024-03-15 14:30:23.890] [rocky@infra01 ~]$ date
+  Fri Mar 15 14:30:23 JST 2024
+  ```
+
 ---
 
 ### 5. TTLマクロを生成
@@ -125,7 +159,7 @@ python bin/generate_ttl_macros.py
 python bin/run_launcher.py
 ```
 
-#### ランチャーの設定（`launcher_config.json`）
+#### ランチャーの設定（`launcher_config.json`）※自動生成
 
 ```json
 {

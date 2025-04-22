@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime
 import re
 import math
+import logging
 from typing import Dict, List, Optional
 
 # 各種パスの定義
@@ -13,6 +14,32 @@ OUTPUT_DIR = BASE_DIR / "macros"
 LOGS_DIR = BASE_DIR / "logs"
 KEYS_DIR = BASE_DIR / "keys"
 
+# ログ設定
+def setup_logging():
+    """ログ設定を行う"""
+    log_file = LOGS_DIR / "generate.log"
+    LOGS_DIR.mkdir(exist_ok=True)
+    
+    # ログフォーマットの設定
+    formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    
+    # ファイルハンドラの設定
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    
+    # 標準出力ハンドラの設定
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    
+    # ロガーの設定
+    logger = logging.getLogger('generate')
+    logger.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+# TTLテンプレート読み込み
 def load_template() -> str:
     """TTLテンプレートを読み込む"""
     return TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -101,9 +128,12 @@ def generate_ttl_content(data: Dict[str, str], template: str, timestamp: str) ->
 
 def generate_ttl_macros():
     """TTLマクロを生成するメイン関数"""
+    logger = setup_logging()
     template = load_template()
     df = load_excel_data()
     timestamp = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    
+    logger.info("生成開始")
     
     for _, row in df.iterrows():
         # 空白行スキップ
@@ -113,20 +143,23 @@ def generate_ttl_macros():
         # 生成フラグを確認
         generate_flag = str(row.get("generate", "")).strip().lower()
         if generate_flag == "e":
-            print("⏹️ 'e' を検出したため、処理を終了します。")
+            logger.info("⏹️ 'e' を検出したため、処理を終了します。")
             break
         if generate_flag != "yes":
             continue
         
-        # データの抽出と処理
-        data = extract_row_data(row)
-        target_dir = get_target_directory(data)
-        content = generate_ttl_content(data, template, timestamp)
-        
-        # マクロファイルを生成
-        ttl_name = f"{data['name']}_{data['user']}_{data['host']}"
-        (target_dir / f"{ttl_name}.ttl").write_text(content, encoding="utf-8")
-        print(f"✅ {ttl_name}.ttl を生成しました。")
+        try:
+            # データの抽出と処理
+            data = extract_row_data(row)
+            target_dir = get_target_directory(data)
+            content = generate_ttl_content(data, template, timestamp)
+            
+            # マクロファイルを生成
+            ttl_name = f"{data['name']}_{data['user']}_{data['host']}"
+            (target_dir / f"{ttl_name}.ttl").write_text(content, encoding="utf-8")
+            logger.info(f"✅ {ttl_name}.ttl を生成しました。")
+        except Exception as e:
+            logger.error(f"❌ {ttl_name}.ttl の生成に失敗しました: {str(e)}")
 
 if __name__ == "__main__":
     generate_ttl_macros()
