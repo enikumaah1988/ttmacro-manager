@@ -2,6 +2,7 @@
 ; TTL作成日時 : {created_at}
 ; 接続ユーザー : {username}
 ; 接続ホスト   : {hostname}
+; メモ        : {memo}
 ;=================================================
 
 name     = '{name}'
@@ -73,11 +74,19 @@ endif
 settitle ttl_name
 
 ;; 接続時コマンド実行
+wait '$' '#'
 sendln "date '+%Y/%m/%d %H:%M:%S'"
+wait '$' '#'
 sendln 'whoami'
+wait '$' '#'
 sendln 'uname -a'
 
-;; カスタムコマンド実行
-;; sendIn
+;; ポストコマンド
+{post_commands}
+
+;; カスタムコマンド実行（手動設定）
+;; サンプルコマンド
+;; wait '$' '#'
+;; sendIn 'echo test'
 
 wait '$' '#'
