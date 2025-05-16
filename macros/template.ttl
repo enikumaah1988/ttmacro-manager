@@ -23,10 +23,6 @@ strconcat current_dir '/'
 base_path = current_dir
 strconcat base_path rel_path
 
-;; ログパスの計算
-logspath = base_path
-strconcat logspath 'logs/'
-
 ;; タイトルバーの設定
 ttl_name = name
 strconcat ttl_name '_'
@@ -34,14 +30,17 @@ strconcat ttl_name username
 strconcat ttl_name '_'
 strconcat ttl_name hostname
 
-;; ログ出力先フルパスの設定
-gettime timestr '%Y%m%d_%H%M%S'
-logfile = ttl_name
-strconcat logfile '_'
-strconcat logfile timestr
-strconcat logfile '.log'
-logoutputpath = logspath
-strconcat logoutputpath logfile
+;; ログパスとファイル名の設定
+logpath = base_path
+strconcat logpath 'logs/'
+
+;; ログファイル名の設定（Tera Termのフォーマット指定子を使用）
+logfilename = ttl_name
+strconcat logfilename '_%Y%m%d_%H%M%S.log'
+
+;; ログ出力先のフルパスを生成
+logoutputpath = logpath
+strconcat logoutputpath logfilename
 
 ;; 接続設定
 command = hostname
@@ -80,7 +79,7 @@ if result <> 2 then
   end
 endif
 
-;; ログ出力
+;; ログ出力（フルパスを直接指定）
 logopen logoutputpath 0 0 1 1 1 0 1
 
 timeout = 5
