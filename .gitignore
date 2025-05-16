@@ -1,12 +1,14 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
 
 # Virtual environment
 .venv/
 
-# VSCode and other IDE settings
+# IDE settings
 .vscode/
 .idea/
 .cursor/
@@ -18,22 +20,19 @@ Thumbs.db
 # Logs
 logs/
 *.log
+!logs/.gitkeep
 
-# Excel output or runtime files
+# Excel files
 data/servers.xlsx
 !data/servers_template.xlsx
 
-# TTL generated files
+# TTL files
 macros/**/*.ttl
 !macros/template.ttl
 
-# SSH key files
+# SSH keys
 keys/*
 !keys/.gitkeep
-
-# Python cache
-*.pyo
-*.pyd
 
 # Jupyter / IPython
 .ipynb_checkpoints/
@@ -45,22 +44,5 @@ keys/*
 # Environment files
 .env
 
-# Logs
-logs/
-*.log
-!logs/.gitkeep
-
-# launcher config
+# Launcher config
 bin/launcher_config.json
-
-# Excel output or runtime files
-data/servers.xlsx
-!data/servers_template.xlsx
-
-# TTL generated files
-macros/**/*.ttl
-!macros/template.ttl
-
-# SSH key files
-keys/*
-!keys/.gitkeep
