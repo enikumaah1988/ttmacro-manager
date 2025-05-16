@@ -177,8 +177,6 @@ python bin/run_launcher.py
 ![Tera Term GUIランチャー](images/launcher_gui.png) 
 ※イメージ画像は古い
 
----
-
 ## ttlマクロのパス管理の仕組み
 
 ### パス計算の仕組み
