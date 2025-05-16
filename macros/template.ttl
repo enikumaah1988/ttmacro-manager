@@ -5,14 +5,27 @@
 ; メモ        : {memo}
 ;=================================================
 
+;=================================================
 name     = '{name}'
 hostname = '{hostname}'
 port     = '{port}'
 username = '{username}'
 password = '{password}'
 keyfile  = '{keyfile}'
-logspath = "{logspath}"
+rel_path = '{rel_path}'
 ;=================================================
+
+;; 現在のTTLファイルのディレクトリを取得
+getdir current_dir
+strconcat current_dir '/'
+
+;; 相対パスを合成
+base_path = current_dir
+strconcat base_path rel_path
+
+;; ログパスの計算
+logspath = base_path
+strconcat logspath 'logs/'
 
 ;; タイトルバーの設定
 ttl_name = name
@@ -38,6 +51,12 @@ strconcat command ' /ssh /2'
 
 strcompare keyfile ''
 if result <> 0 then
+    ; 鍵ファイルパスの設定
+    keyfile_path = base_path
+    strconcat keyfile_path 'keys/'
+    strconcat keyfile_path keyfile
+    keyfile = keyfile_path
+
     ; 鍵認証
     strconcat command ' /auth=publickey /user='
     strconcat command username
