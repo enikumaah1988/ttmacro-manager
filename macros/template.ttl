@@ -80,7 +80,7 @@ if result <> 2 then
 endif
 
 ;; ログ出力（フルパスを直接指定）
-logopen logoutputpath 0 0 1 1 1 0 1
+logopen logoutputpath 0 0 1 1 0 0 0
 
 timeout = 5
 wait '$' '#'
@@ -94,6 +94,8 @@ settitle ttl_name
 ;; 接続時コマンド実行
 wait '$' '#'
 sendln "date '+%Y/%m/%d %H:%M:%S'"
+wait '$' '#'
+sendln 'hostname -I'
 wait '$' '#'
 sendln 'whoami'
 wait '$' '#'
