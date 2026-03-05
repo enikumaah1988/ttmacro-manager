@@ -1,11 +1,24 @@
-import pandas as pd
+# 型ヒントを遅延評価にし、pandas を後からインポートできるようにする
+from __future__ import annotations
+
+# 最初に使用中の Python を表示（pandas は後でインポートするのでここでは落ちない）
+import sys
+print("使用中の Python:", sys.executable, file=sys.stderr, flush=True)
+# Python 3.14 では pandas/numpy のネイティブ拡張が未対応で import 時に落ちるためチェック
+print("TTLマクロ生成を開始しています...", file=sys.stderr, flush=True)
+
+# pandas は generate_ttl_macros() 内で遅延インポート（import で落ちる環境でもスクリプトは起動する）
+pd = None
+
 from pathlib import Path
 from datetime import datetime
 import re
 import math
 import logging
 import argparse
-from typing import Dict, List, Optional
+import traceback
+import ipaddress
+from typing import Dict, List, Optional, Tuple
 
 # 各種パスの定義
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,22 +41,35 @@ def setup_logging():
     file_handler = logging.FileHandler(log_file, encoding='utf-8')
     file_handler.setFormatter(formatter)
     
-    # 標準出力ハンドラの設定
-    console_handler = logging.StreamHandler()
+    # コンソールハンドラ（stderr に明示）
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(formatter)
     
-    # ロガーの設定
+    # ロガーの設定（既存ハンドラをクリアしてから追加）
     logger = logging.getLogger('generate')
+    logger.handlers.clear()
     logger.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
+    logger.propagate = False
     
     return logger
 
 # TTLテンプレート読み込み
 def load_template() -> str:
     """TTLテンプレートを読み込む"""
-    return TEMPLATE_PATH.read_text(encoding="utf-8")
+    if not TEMPLATE_PATH.exists():
+        raise FileNotFoundError(f"テンプレートファイルが見つかりません: {TEMPLATE_PATH}")
+    
+    try:
+        content = TEMPLATE_PATH.read_text(encoding="utf-8")
+        if not content.strip():
+            raise ValueError("テンプレートファイルが空です")
+        return content
+    except UnicodeDecodeError:
+        raise ValueError(f"テンプレートファイルの文字エンコーディングが不正です: {TEMPLATE_PATH}")
+    except Exception as e:
+        raise RuntimeError(f"テンプレートファイル読み込みエラー: {str(e)}")
 
 def sanitize_name(name: str) -> str:
     """Windows禁止文字を _ に置換"""
@@ -62,13 +88,58 @@ def safe_get(row: pd.Series, key: str, default: str = "") -> str:
 
 def load_excel_data() -> pd.DataFrame:
     """Excelファイルを読み込む"""
+    if not EXCEL_PATH.exists():
+        raise FileNotFoundError(f"Excelファイルが見つかりません: {EXCEL_PATH}")
+    
     try:
         with open(EXCEL_PATH, 'rb') as f:
-            return pd.read_excel(f, engine="openpyxl")
+            df = pd.read_excel(f, engine="openpyxl")
+            if df.empty:
+                raise ValueError("Excelファイルが空です")
+            return df
     except PermissionError:
-        print(f"⚠️ Excelファイルが他で開かれています: {EXCEL_PATH}")
-        print("💡 閉じてから再度実行してください。")
-        exit(1)
+        raise PermissionError(f"Excelファイルが他で開かれています: {EXCEL_PATH}")
+    except Exception as e:
+        raise RuntimeError(f"Excelファイル読み込みエラー: {str(e)}")
+
+def validate_row_data(row: pd.Series, row_num: int) -> Tuple[bool, List[str]]:
+    """行データの妥当性を検証"""
+    errors = []
+    
+    # 必須フィールドチェック
+    required_fields = ['name', 'host', 'user']
+    for field in required_fields:
+        if pd.isna(row.get(field)) or str(row.get(field, '')).strip() == '':
+            errors.append(f"必須項目 '{field}' が空です")
+    
+    # IPアドレス/ホスト名チェック
+    host = str(row.get('host', '')).strip()
+    if host:
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            # IPアドレスでない場合はホスト名として扱う（簡易チェック）
+            if not re.match(r'^[a-zA-Z0-9.-]+$', host):
+                errors.append(f"ホスト名 '{host}' の形式が不正です")
+    
+    # ポート番号チェック
+    port = row.get('port')
+    if pd.notna(port):
+        try:
+            port_num = int(port)
+            if not (1 <= port_num <= 65535):
+                errors.append(f"ポート番号 {port_num} は範囲外です (1-65535)")
+        except (ValueError, TypeError):
+            errors.append(f"ポート番号 '{port}' が数値ではありません")
+    
+    # キーファイル存在チェック
+    keyfile = safe_get(row, 'keyfile')
+    if keyfile:
+        keyfile_path = KEYS_DIR / keyfile
+        if not keyfile_path.exists():
+            errors.append(f"キーファイル '{keyfile}' が見つかりません: {keyfile_path}")
+    
+    return len(errors) == 0, errors
 
 def extract_row_data(row: pd.Series) -> Dict[str, str]:
     """行データから必要な情報を抽出"""
@@ -76,10 +147,10 @@ def extract_row_data(row: pd.Series) -> Dict[str, str]:
     memo = safe_get(row, "memo").replace('\r', ' ').replace('\n', ' ').replace('\t', ' ')
     
     return {
-        "name": sanitize_name(row["name"]),
-        "host": row["host"],
-        "port": str(row["port"]),
-        "user": row["user"],
+        "name": sanitize_name(str(row["name"]).strip()),
+        "host": str(row["host"]).strip(),
+        "port": str(int(row["port"])) if pd.notna(row["port"]) else "22",
+        "user": str(row["user"]).strip(),
         "password": safe_get(row, "password"),
         "keyfile_name": safe_get(row, "keyfile"),
         "post_cmd": safe_get(row, "post_cmd"),
@@ -100,7 +171,17 @@ def get_target_directory(data: Dict[str, str]) -> Path:
         if data["group3"]:
             target_dir = target_dir / data["group3"]
     
-    target_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        # 書き込み権限チェック
+        test_file = target_dir / ".write_test"
+        test_file.touch()
+        test_file.unlink()
+    except PermissionError:
+        raise PermissionError(f"ディレクトリへの書き込み権限がありません: {target_dir}")
+    except Exception as e:
+        raise RuntimeError(f"ディレクトリ作成エラー: {target_dir} - {str(e)}")
+    
     return target_dir
 
 def calculate_relative_path(target_dir: Path) -> str:
@@ -116,10 +197,18 @@ def calculate_relative_path(target_dir: Path) -> str:
     depth = len(rel_path.parts)
     return '../' * depth
 
+def get_log_dir(target_dir: Path) -> Path:
+    """TTL と同じ階層になるよう logs 以下のディレクトリを返す（macros/home/prod → logs/home/prod）"""
+    rel = target_dir.relative_to(OUTPUT_DIR)
+    if rel == Path("."):
+        return LOGS_DIR
+    return LOGS_DIR / rel
+
+
 def calculate_paths(data: Dict[str, str], target_dir: Path) -> Dict[str, str]:
     """各種パスを計算"""
     # TTLファイル名の生成
-    ttl_name = f"{data['name']}_{data['user']}_{data['host']}"
+    ttl_name = f"{data['name']}_{data['host']}_{data['user']}"
     
     # ログファイル名の生成
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -214,58 +303,147 @@ generate列が'yes'の行のみが処理対象となります。
 
 def generate_ttl_macros(args):
     """TTLマクロを生成するメイン関数"""
-    logger = setup_logging()
-    template = load_template()
-    df = load_excel_data()
-    timestamp = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    
-    logger.info("生成開始")
-    
-    # 行番号が指定されている場合
-    if args.row is not None:
-        # No.列で指定された行を検索
-        matching_rows = df[df['No.'] == args.row]
-        if matching_rows.empty:
-            logger.error(f"❌ 指定されたNo. {args.row} は見つかりませんでした")
-            return
-        # 指定された行のみ処理
-        rows_to_process = [matching_rows.iloc[0]]
-        logger.info(f"📝 No.{args.row} のサーバーを処理します")
-    else:
-        # 全行処理
-        rows_to_process = df.iterrows()
-    
-    for row in rows_to_process:
-        # iterrowsの場合はタプルが返るので、行データを取得
-        if isinstance(row, tuple):
-            _, row = row
-        
-        # 空白行スキップ
-        if row.isnull().all():
-            continue
-        
-        # 生成フラグを確認
-        generate_flag = str(row.get("generate", "")).strip().lower()
-        if generate_flag == "e":
-            logger.info("⏹️ 'e' を検出したため、処理を終了します。")
-            break
-        if generate_flag != "yes":
-            continue
-        
+    global pd
+    # ここで pandas をインポート（import で落ちる環境でもスクリプトはここまで起動する）
+    if pd is None:
         try:
-            # データの抽出と処理
-            data = extract_row_data(row)
-            target_dir = get_target_directory(data)
-            content = generate_ttl_content(data, template, timestamp, target_dir)
-            
-            # マクロファイルを生成
-            ttl_name = f"{data['name']}_{data['user']}_{data['host']}"
-            (target_dir / f"{ttl_name}.ttl").write_text(content, encoding="utf-8")
-            logger.info(f"✅ {ttl_name}.ttl を生成しました。（No.{row['No.']}）")
+            import pandas as _pd
+            pd = _pd
         except Exception as e:
-            logger.error(f"❌ {ttl_name}.ttl の生成に失敗しました: {str(e)}")
+            print("pandas のインポートに失敗しました:", e, file=sys.stderr, flush=True)
+            print("仮想環境を有効にして、pip install pandas openpyxl を実行してください。", file=sys.stderr, flush=True)
+            sys.exit(1)
+    print("[1/4] ログ設定...", file=sys.stderr, flush=True)
+    logger = setup_logging()
+    
+    try:
+        # 初期化処理
+        print("[2/4] テンプレート・Excel 読み込み...", file=sys.stderr, flush=True)
+        template = load_template()
+        df = load_excel_data()
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        
+        logger.info(f"読み込み元: {EXCEL_PATH}")
+        logger.info("生成開始")
+        
+        # 必要な列の存在チェック
+        required_columns = ['No.', 'name', 'host', 'user', 'generate']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"必要な列が見つかりません: {', '.join(missing_columns)}")
+        
+        # 行番号が指定されている場合
+        if args.row is not None:
+            matching_rows = df[df['No.'] == args.row]
+            if matching_rows.empty:
+                logger.error(f"❌ 指定されたNo. {args.row} は見つかりませんでした")
+                return
+            rows_to_process = [(args.row, matching_rows.iloc[0])]
+            logger.info(f"📝 No.{args.row} のサーバーを処理します")
+        else:
+            rows_to_process = df.iterrows()
+            # 対象行数を事前に表示（generate=yes の行数）
+            generate_count = sum(
+                1 for _, r in df.iterrows()
+                if str(r.get("generate", "")).strip().lower() in ("yes", "true", "1")
+            )
+            logger.info(f"generate=yes の行: {generate_count} 件（全 {len(df)} 行中）")
+            if generate_count == 0:
+                logger.warning("⚠️ 対象行が0件です。Excelの generate 列に yes を指定した行がありますか？")
+        
+        print("[3/4] 行を処理しています...", file=sys.stderr, flush=True)
+        success_count = 0
+        error_count = 0
+        
+        for idx, row in rows_to_process:
+            try:
+                # 空白行スキップ
+                if row.isnull().all():
+                    continue
+                
+                # 生成フラグを確認（--row 指定時は対象行を無条件で処理）
+                generate_flag = str(row.get("generate", "")).strip().lower()
+                if args.row is None and generate_flag == "e":
+                    logger.info("⏹️ 'e' を検出したため、処理を終了します。")
+                    break
+                # yes/true/1 を有効とする（Excel の TRUE や 1 にも対応）
+                if args.row is None and generate_flag not in ("yes", "true", "1"):
+                    continue
+                
+                # 行データの検証
+                row_num = row.get('No.', idx + 1)
+                is_valid, validation_errors = validate_row_data(row, row_num)
+                if not is_valid:
+                    error_msg = f"No.{row_num} データ検証エラー: {'; '.join(validation_errors)}"
+                    logger.error(f"❌ {error_msg}")
+                    error_count += 1
+                    continue
+                
+                # データの抽出と処理
+                data = extract_row_data(row)
+                target_dir = get_target_directory(data)
+                content = generate_ttl_content(data, template, timestamp, target_dir)
+                
+                # マクロファイルを生成
+                ttl_name = f"{data['name']}_{data['host']}_{data['user']}"
+                ttl_file = target_dir / f"{ttl_name}.ttl"
+                
+                try:
+                    ttl_file.write_text(content, encoding="utf-8")
+                    logger.info(f"✅ {ttl_name}.ttl を生成しました。（No.{row_num}）")
+                    success_count += 1
+                except Exception as e:
+                    logger.error(f"❌ ファイル書き込みエラー {ttl_name}.ttl: {str(e)}")
+                    error_count += 1
+                    
+            except Exception as e:
+                row_num = row.get('No.', idx + 1) if not row.isnull().all() else idx + 1
+                logger.error(f"❌ No.{row_num} 処理エラー: {str(e)}")
+                error_count += 1
+        
+        # 処理結果サマリー
+        print("[4/4] 完了", file=sys.stderr, flush=True)
+        logger.info(f"📊 処理完了 - 成功: {success_count}件, エラー: {error_count}件")
+        
+    except Exception as e:
+        err_msg = f"致命的エラー: {str(e)}"
+        tb_lines = traceback.format_exc()
+        # 必ず stderr にトレースバックを出す（ログ未初期化でも確実に表示）
+        print("", file=sys.stderr)
+        print("=== エラー内容（トレースバック） ===", file=sys.stderr)
+        print(tb_lines, file=sys.stderr)
+        print("====================================", file=sys.stderr)
+        try:
+            logger.error(f"❌ {err_msg}")
+            # ログファイルにもトレースバックを残す（コンソールに出ない場合のため）
+            logger.error("トレースバック:\n%s", tb_lines)
+        except NameError:
+            print(f"エラー: {err_msg}", file=sys.stderr)
+        sys.stderr.flush()
+        sys.exit(1)
+
 
 if __name__ == "__main__":
-    args = parse_args()
-    generate_ttl_macros(args)
-    exit(0)
+    try:
+        args = parse_args()
+        generate_ttl_macros(args)
+        print("TTLマクロ生成を終了しました。", file=sys.stderr, flush=True)
+        sys.exit(0)
+    except SystemExit:
+        raise
+    except Exception:
+        # どこで落ちてもトレースバックを必ず stderr に出す
+        tb_lines = traceback.format_exc()
+        print("", file=sys.stderr)
+        print("=== 予期しないエラー（トレースバック） ===", file=sys.stderr)
+        print(tb_lines, file=sys.stderr)
+        print("==========================================", file=sys.stderr)
+        sys.stderr.flush()
+        # コンソールに出ない場合に備え、クラッシュログをファイルに残す
+        try:
+            crash_log = BASE_DIR / "logs" / "generate_crash.log"
+            crash_log.parent.mkdir(parents=True, exist_ok=True)
+            crash_log.write_text(tb_lines, encoding="utf-8")
+        except Exception:
+            pass
+        sys.exit(1)
