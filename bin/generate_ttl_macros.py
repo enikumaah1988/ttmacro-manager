@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# pandas インポート前に Python のパスを表示（3.14 環境で pandas が落ちる場合の調査支援）
+# pandas/numpy の import で失敗した場合に備え、使用中の Python を先に表示しておく
 print("使用中の Python:", sys.executable, file=sys.stderr, flush=True)
 print("TTLマクロ生成を開始しています...", file=sys.stderr, flush=True)
 

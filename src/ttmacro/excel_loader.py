@@ -1,8 +1,8 @@
 """Excel 台帳の読み込み・行検証・行データ抽出。
 
-このモジュールは pandas に依存するため、Python 3.14 環境では
-import で失敗する可能性がある。呼び出し元（cli.py）は遅延 import で
-このリスクをユーザーフレンドリーなメッセージに変換する。
+このモジュールは pandas に依存する。pandas が未導入の環境では import で
+失敗するため、呼び出し元（cli.py）は遅延 import でユーザーフレンドリーな
+メッセージに変換する。
 """
 
 from __future__ import annotations
