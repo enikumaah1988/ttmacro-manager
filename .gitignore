@@ -5,6 +5,12 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
 # Virtual environment
 .venv/
 
