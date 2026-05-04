@@ -12,6 +12,7 @@ __pycache__/
 .vscode/
 .idea/
 .cursor/
+.claude/
 
 # OS-specific files
 .DS_Store
@@ -46,3 +47,6 @@ keys/*
 
 # Launcher config
 bin/launcher_config.json
+
+# Claude Code 用ガイダンス（ローカル管理）
+CLAUDE.md

@@ -1,0 +1,70 @@
+# Python プロジェクト設定ファイル（PEP 621 / PEP 518 準拠）
+# 依存関係・パッケージ情報・ツール設定をすべてこの1ファイルに集約する。
+
+# -------- ビルドシステム --------
+# hatchling: 軽量なビルドバックエンド。pip install 時にこの設定でパッケージを作る。
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# -------- プロジェクト情報 --------
+[project]
+name = "ttmacro-manager"
+version = "0.1.0"
+description = "Tera Term TTL マクロを Excel 台帳から一括生成・起動するツール"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"  # pandas/numpy のネイティブ拡張が 3.14 未対応のため上限を切る
+authors = [{ name = "kazuhiko.kumano" }]
+
+# 本番依存（pip install . で入る）
+dependencies = [
+    "pandas>=2.0.0",
+    "openpyxl>=3.0.0",
+]
+
+# 開発依存（pip install -e ".[dev]" で入る）
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5.0",      # Linter + フォーマッタ
+    "pytest>=8.0.0",    # テストフレームワーク
+    "pytest-cov>=5.0",  # カバレッジ計測
+    "mypy>=1.10.0",     # 型チェック
+]
+
+# -------- hatchling のビルド設定 --------
+# パッケージ実体が src/ttmacro/ に置かれることを宣言する。
+# まだ中身は空（パッケージ化リファクタ後に充実させる予定）。
+[tool.hatch.build.targets.wheel]
+packages = ["src/ttmacro"]
+
+# -------- ruff（Linter + フォーマッタ）--------
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src", "bin", "tests"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle（PEP 8）, F: pyflakes（未使用 import 等）, I: isort（import 順序）,
+# UP: pyupgrade（古い構文の指摘）, B: bugbear（よくあるバグパターン）, SIM: simplify
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+# E501（行長超過）はフォーマッタが整えるので Linter 側では無効化
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# -------- pytest --------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --strict-markers"
+
+# -------- mypy --------
+[tool.mypy]
+python_version = "3.12"
+# strict を true にすると型ヒント漏れが全部エラーになるため、段階導入を優先して false。
+strict = false
+# 型情報の無いサードパーティ（pandas など）の import エラーを抑止
+ignore_missing_imports = true
+warn_unused_ignores = true
