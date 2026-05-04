@@ -31,6 +31,13 @@ dev = [
     "mypy>=1.10.0",     # 型チェック
 ]
 
+# コンソール／GUI エントリポイント
+# `pip install -e .` 後に PATH に shim が作られ、コマンドとして起動できる。
+# PyInstaller では packaging/ 配下の .spec から同じ関数を呼ぶ。
+[project.scripts]
+ttmacro-generate = "ttmacro.cli:main"
+ttmacro-launcher = "ttmacro.launcher:main"
+
 # -------- hatchling のビルド設定 --------
 # パッケージ実体が src/ttmacro/ に置かれることを宣言する。
 # まだ中身は空（パッケージ化リファクタ後に充実させる予定）。

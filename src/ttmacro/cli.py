@@ -30,43 +30,36 @@ def parse_args() -> argparse.Namespace:
         SystemExit: ``--dry-run`` が ``--clean`` なしで指定された場合。
     """
     parser = argparse.ArgumentParser(
+        prog="ttmacro-generate",
         description=r"""
 TTLマクロを生成するツール
 
 servers.xlsxの内容に基づいてTTLマクロを生成します。
 generate列が'yes'の行のみが処理対象となります。
 'e'が指定されている行で処理を終了します。
-
-実行方法:
-  # PowerShellの場合
-  python .\generate_ttl_macros.py [オプション]
-
-  # コマンドプロンプトの場合
-  python generate_ttl_macros.py [オプション]
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=r"""
 使用例:
   # 全行を生成
-  python .\generate_ttl_macros.py
+  ttmacro-generate
 
   # 特定の行のみ生成（5行目）
-  python .\generate_ttl_macros.py --row 5
+  ttmacro-generate --row 5
 
   # 既存 TTL を全削除してから生成（グループ変更時の孤児解消）
-  python .\generate_ttl_macros.py --clean
+  ttmacro-generate --clean
 
   # 削除対象を確認するだけ（実削除も生成も行わない）
-  python .\generate_ttl_macros.py --clean --dry-run
+  ttmacro-generate --clean --dry-run
 
   # ヘルプを表示
-  python .\generate_ttl_macros.py --help
+  ttmacro-generate --help
 
 注意:
   - 行番号はExcelのA列のNo.を指定します
   - generate列が'yes'の行のみが処理されます
   - 生成フラグに'e'を指定すると処理を終了します
-  - PowerShellで実行する場合は 'python .\generate_ttl_macros.py' を使用してください
   - --row と --clean は併用できません
         """,
     )

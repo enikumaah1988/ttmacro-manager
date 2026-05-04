@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 
@@ -41,8 +42,25 @@ def _env_path(env_name: str, default: Path) -> Path:
     return default
 
 
-# src/ttmacro/config.py からプロジェクトルートまで 3 階層上る
-_DEFAULT_BASE_DIR = Path(__file__).resolve().parent.parent.parent
+def _resolve_default_base_dir() -> Path:
+    """デフォルトの BASE_DIR を実行モード別に解決する。
+
+    開発実行（python -m / pip install -e .）では本ファイルから
+    プロジェクトルートまで 3 階層上った場所を返す。
+
+    PyInstaller で凍結された実行ファイルでは ``sys.executable`` が
+    ``<deploy_root>/bin/<exe>`` を指すため、その親の親をデプロイルート
+    として返す（同梱の data/macros/keys/logs を相対参照するため）。
+    """
+    if getattr(sys, "frozen", False):
+        # PyInstaller --onefile：sys.executable は bin/<exe>。
+        # その親（bin/）の親 = デプロイルート。
+        return Path(sys.executable).resolve().parent.parent
+    # 開発実行：src/ttmacro/config.py から 3 階層上る
+    return Path(__file__).resolve().parent.parent.parent
+
+
+_DEFAULT_BASE_DIR = _resolve_default_base_dir()
 
 # 個別の環境変数 > BASE_DIR 起点デフォルト の優先順位
 BASE_DIR = _env_path("TTMACRO_BASE_DIR", _DEFAULT_BASE_DIR)

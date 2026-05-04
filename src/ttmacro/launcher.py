@@ -2,6 +2,9 @@
 
 macros_root 配下の .ttl ファイルをツリー表示し、ダブルクリックや Enter で
 Tera Term を起動するための Tkinter アプリケーション。
+
+設定ファイル（``launcher_config.json``）は ``BASE_DIR/bin/`` 配下に保存する。
+PyInstaller でビルドした exe からも開発実行からも同じ場所を読み書きする。
 """
 
 from __future__ import annotations
@@ -19,10 +22,13 @@ from typing import Any
 
 import ttkbootstrap as ttk  # ttkbootstrap が ttk を拡張：API は ttk 互換 + bootstyle 引数
 
+from ttmacro.config import BASE_DIR
+
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE = Path(__file__).resolve().parent / "launcher_config.json"
-BASE_DIR = Path(__file__).resolve().parent.parent
+# 設定ファイルは bin/ に置く。BASE_DIR は frozen モードでは
+# <deploy_root>、開発実行ではプロジェクトルートを指す（config.py 参照）。
+CONFIG_FILE = BASE_DIR / "bin" / "launcher_config.json"
 
 
 def _parse_ttl_filename(filename: str) -> tuple[str, str, str]:
@@ -101,12 +107,17 @@ class LauncherApp:
             return {}
 
     def _save_config(self) -> None:
-        """現在の設定値を launcher_config.json に書き込む。"""
+        """現在の設定値を launcher_config.json に書き込む。
+
+        ``bin/`` ディレクトリが無ければ自動作成する（exe 配布版で
+        bin/ だけ存在していて launcher_config.json が無い状態にも備える）。
+        """
         data = {
             "teraterm_path": self.tterm_path.get(),
             "macros_root": self.macros_dir.get(),
         }
         try:
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
             CONFIG_FILE.write_text(
                 json.dumps(data, indent=4, ensure_ascii=False),
                 encoding="utf-8",
@@ -199,7 +210,7 @@ class LauncherApp:
 
         ``self.search_query`` が非空ならファイル名・グループパスに対する
         部分一致（大文字小文字無視）でフィルタする。フィルタ時は親フォルダを
-        自動展開して見つけやすくする。template.ttl は常に対象外。
+        自動展開して見つけやすくする。templates/ 配下は常に対象外。
         """
         self.tree.delete(*self.tree.get_children())
 
@@ -356,7 +367,7 @@ class LauncherApp:
         # ウィンドウ全幅まで伸ばさず固定幅。長い検索語が入る前提ではないため width=40
         entry = ttk.Entry(frame, textvariable=self.search_query, width=40)
         entry.pack(side=tk.LEFT, padx=5)
-        # 入力ごとに即時反映（pandas/重い処理ではないので debounce 不要）
+        # 入力ごとに即時反映（重い処理ではないので debounce 不要）
         entry.bind("<KeyRelease>", lambda _: self._build_tree())
 
         ttk.Button(frame, text="✕クリア", command=self._on_clear_search, width=8).pack(
