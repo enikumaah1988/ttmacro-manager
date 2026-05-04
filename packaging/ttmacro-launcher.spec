@@ -14,15 +14,16 @@ from pathlib import Path
 PROJECT_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 (SPECPATH は PyInstaller 注入)
 SRC_DIR = PROJECT_ROOT / "src"
 
-# アイコン未用意のため None。.ico ファイル用意後に有効化する。
-# 例: ICON_PATH = str(PROJECT_ROOT / "packaging" / "launcher.ico")
-ICON_PATH = None
+ICON_PATH = str(PROJECT_ROOT / "packaging" / "launcher.ico")
 
 a = Analysis(
     [str(PROJECT_ROOT / "packaging" / "entry_launcher.py")],
     pathex=[str(SRC_DIR)],
     binaries=[],
-    datas=[],
+    # ウィンドウ／タスクバーアイコン用に .ico を exe 内へ同梱（実行時に sys._MEIPASS 直下に展開）
+    datas=[
+        (str(PROJECT_ROOT / "packaging" / "launcher.ico"), "."),
+    ],
     # ttkbootstrap は実行時にテーマファイルを動的読込するため hidden import 指定で確実に拾う
     hiddenimports=["ttkbootstrap"],
     hookspath=[],

@@ -13,6 +13,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821
 SRC_DIR = PROJECT_ROOT / "src"
 
+# ランチャーと同じアイコンを使う
+ICON_PATH = str(PROJECT_ROOT / "packaging" / "launcher.ico")
+
 a = Analysis(
     [str(PROJECT_ROOT / "packaging" / "entry_generate.py")],
     pathex=[str(SRC_DIR)],
@@ -56,4 +59,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=ICON_PATH,
 )

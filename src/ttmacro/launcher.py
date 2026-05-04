@@ -14,6 +14,7 @@ import logging
 import re
 import shutil
 import subprocess
+import sys
 import tkinter as tk
 from collections.abc import Callable
 from pathlib import Path
@@ -29,6 +30,24 @@ logger = logging.getLogger(__name__)
 # 設定ファイルは bin/ に置く。BASE_DIR は frozen モードでは
 # <deploy_root>、開発実行ではプロジェクトルートを指す（config.py 参照）。
 CONFIG_FILE = BASE_DIR / "bin" / "launcher_config.json"
+
+
+def _resolve_icon_path() -> Path | None:
+    """ウィンドウアイコン用の .ico パスを実行モード別に解決する。
+
+    PyInstaller --onefile で凍結された場合は ``sys._MEIPASS`` 直下に
+    spec の ``datas`` から展開された launcher.ico を返す。開発実行では
+    プロジェクトルートの ``packaging/launcher.ico`` を返す。
+
+    Returns:
+        実在する .ico の絶対パス。見つからなければ None。
+    """
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", ""))
+        icon_path = meipass / "launcher.ico"
+    else:
+        icon_path = BASE_DIR / "packaging" / "launcher.ico"
+    return icon_path if icon_path.exists() else None
 
 
 def _parse_ttl_filename(filename: str) -> tuple[str, str, str]:
@@ -72,6 +91,14 @@ class LauncherApp:
         # 初期ウィンドウサイズ（ツリーで多めの行が見えるよう縦長め）
         self.root.geometry("1100x700")
         self.root.minsize(800, 500)
+
+        # ウィンドウ／タスクバーアイコン（.ico が見つかれば適用、無ければ Tk 既定のまま）
+        icon_path = _resolve_icon_path()
+        if icon_path is not None:
+            try:
+                self.root.iconbitmap(str(icon_path))
+            except tk.TclError as e:
+                logger.warning("アイコン設定に失敗: %s", e)
 
         self.macros_dir = tk.StringVar(master=root, value="")
         self.tterm_path = tk.StringVar(master=root, value="")
