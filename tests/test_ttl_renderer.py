@@ -63,7 +63,9 @@ class TestGenerateTtlContent:
             "pw={password}\nkey={keyfile}\nrel={rel_path}\n"
             "ts={created_at}\nmemo={memo}\npc={post_commands}\n"
         )
-        result = generate_ttl_content(base_data, template, "2026/01/01 00:00:00", target_dir)
+        result = generate_ttl_content(
+            base_data, template, "2026/01/01 00:00:00", target_dir
+        )
 
         assert "name=infra01" in result
         assert "host=192.168.0.10" in result

@@ -76,7 +76,9 @@ def generate_ttl_content(
     rel_path = calculate_relative_path(target_dir)
 
     # ポストコマンドを TTL 構文の wait/sendln ペアに展開
-    post_cmd_lines = [line.strip() for line in data["post_cmd"].splitlines() if line.strip()]
+    post_cmd_lines = [
+        line.strip() for line in data["post_cmd"].splitlines() if line.strip()
+    ]
     post_commands = (
         "\n".join([f"wait '$' '#'\nsendln '{cmd}'\n" for cmd in post_cmd_lines])
         if post_cmd_lines

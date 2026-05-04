@@ -20,7 +20,7 @@ print("TTLマクロ生成を開始しています...", file=sys.stderr, flush=Tr
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from ttmacro.cli import main  # noqa: E402  sys.path 設定後に import する必要がある
+from ttmacro.cli import main  # noqa: E402, I001  sys.path 設定後に import する必要がある
 
 
 if __name__ == "__main__":

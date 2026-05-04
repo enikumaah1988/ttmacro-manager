@@ -68,9 +68,7 @@ def load_excel_data() -> pd.DataFrame:
                 raise ValueError("Excelファイルが空です")
             return df
     except PermissionError as e:
-        raise PermissionError(
-            f"Excelファイルが他で開かれています: {EXCEL_PATH}"
-        ) from e
+        raise PermissionError(f"Excelファイルが他で開かれています: {EXCEL_PATH}") from e
     except (FileNotFoundError, ValueError):
         # 上で投げた例外はそのまま伝播
         raise
@@ -124,9 +122,7 @@ def validate_row_data(row: pd.Series, row_num: int) -> tuple[bool, list[str]]:
     if keyfile:
         keyfile_path = KEYS_DIR / keyfile
         if not keyfile_path.exists():
-            errors.append(
-                f"キーファイル '{keyfile}' が見つかりません: {keyfile_path}"
-            )
+            errors.append(f"キーファイル '{keyfile}' が見つかりません: {keyfile_path}")
 
     return len(errors) == 0, errors
 
@@ -143,10 +139,7 @@ def extract_row_data(row: pd.Series) -> dict[str, str]:
     """
     # メモ内の改行・タブは半角空白に置換（TTL コメントが壊れないように）
     memo = (
-        safe_get(row, "memo")
-        .replace("\r", " ")
-        .replace("\n", " ")
-        .replace("\t", " ")
+        safe_get(row, "memo").replace("\r", " ").replace("\n", " ").replace("\t", " ")
     )
 
     return {

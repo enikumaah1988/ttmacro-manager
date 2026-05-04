@@ -82,7 +82,7 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
     except ImportError as e:
         print(f"pandas のインポートに失敗しました: {e}", file=sys.stderr, flush=True)
         print(
-            "仮想環境を有効にして、pip install -e \".[dev]\" を実行してください。",
+            '仮想環境を有効にして、pip install -e ".[dev]" を実行してください。',
             file=sys.stderr,
             flush=True,
         )
@@ -104,9 +104,7 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
         required_columns = ["No.", "name", "host", "user", "generate"]
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
-            raise ValueError(
-                f"必要な列が見つかりません: {', '.join(missing_columns)}"
-            )
+            raise ValueError(f"必要な列が見つかりません: {', '.join(missing_columns)}")
 
         # 行番号が指定されている場合
         if args.row is not None:
@@ -156,8 +154,7 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
                 )
                 if not is_valid:
                     error_msg = (
-                        f"No.{row_num} データ検証エラー: "
-                        f"{'; '.join(validation_errors)}"
+                        f"No.{row_num} データ検証エラー: {'; '.join(validation_errors)}"
                     )
                     logger.error(f"❌ {error_msg}")
                     error_count += 1
@@ -182,16 +179,12 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
                     error_count += 1
 
             except Exception as e:
-                row_num = (
-                    row.get("No.", idx + 1) if not row.isnull().all() else idx + 1
-                )
+                row_num = row.get("No.", idx + 1) if not row.isnull().all() else idx + 1
                 logger.error(f"❌ No.{row_num} 処理エラー: {e}")
                 error_count += 1
 
         print("[4/4] 完了", file=sys.stderr, flush=True)
-        logger.info(
-            f"📊 処理完了 - 成功: {success_count}件, エラー: {error_count}件"
-        )
+        logger.info(f"📊 処理完了 - 成功: {success_count}件, エラー: {error_count}件")
 
     except Exception as e:
         err_msg = f"致命的エラー: {e}"
