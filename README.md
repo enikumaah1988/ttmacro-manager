@@ -27,7 +27,7 @@ Tera Term用の `.ttl` マクロファイルを Excelベースで一括管理・
 
 ## 構成イメージ
 
-```
+```text
 ttmacro-manager/
 ├── data/
 │   ├── servers_template.xlsx   # 公開用テンプレート
@@ -104,7 +104,7 @@ python -m venv .venv
 仮想環境が有効になると、プロンプトの先頭に `(.venv)` が付きます。  
 表示されない場合は、Windowsの設定（実行ポリシー等）を確認してください。
 
-```
+```text
 (.venv) C:\path\to\ttmacro-manager>
 ```
 
@@ -164,7 +164,7 @@ copy data\servers_template.xlsx data\servers.xlsx
   - 生成されたTTLファイル名
   - エラー情報（発生時）
 
-  ```
+  ```text
   2024-03-15 14:30:22 - 生成開始
   2024-03-15 14:30:22 - ✅ infra01_192.168.0.10_rocky.ttl を生成しました。
   2024-03-15 14:30:22 - ✅ infra02_192.168.0.11_rocky.ttl を生成しました。
@@ -180,7 +180,8 @@ copy data\servers_template.xlsx data\servers.xlsx
   - コマンドの出力結果
 
   - ログ出力サンプル
-  ```  
+
+  ```text
   [2024-03-15 14:30:22.123] [rocky@infra01 ~]$ date '+%Y/%m/%d %H:%M:%S'
   2024/03/15 14:30:23
   [2024-03-15 14:30:23.456] [rocky@infra01 ~]$ whoami
@@ -235,7 +236,7 @@ ttmacro-launcher
 
 ![Tera Term GUIランチャー](images/launcher_gui.png)
 
-※ 上記画像は旧バージョンのもの。現行は ttkbootstrap の `darkly` テーマでダークモード化されており、検索ボックス・サーバ名/IP/ユーザ名の 3 列表示・接続/編集/閉じるボタンが追加されている。
+ttkbootstrap の `darkly` テーマでダークモード化され、検索ボックス・サーバ名/IP/ユーザ名の 3 列表示・接続/編集/閉じるボタンを備える。
 
 ## ttlマクロのパス管理の仕組み
 
@@ -267,6 +268,7 @@ Tera Termのログ設定は以下の優先順位で適用されます：
    - ただし、INIファイルでログ設定が指定されている場合は、そちらが優先される
 
 この仕組みにより：
+
 - ユーザーは各自の環境に合わせてログ設定をカスタマイズ可能
 - プロジェクト全体での一貫したログ管理が可能
 - セキュリティを考慮したログファイルの配置が実現
@@ -391,4 +393,3 @@ exe は `<deploy_root>/bin/` 配下に置く前提で、`data/` `macros/` 等を
 - パスワード暗号化（Tera Term の `/passwd=` が平文要求のため、根本的には鍵認証推奨）
 - マクロのバージョン管理（変更履歴の追跡 / 以前のバージョンへの戻し）
 - UI/UXのさらなる改善
-
