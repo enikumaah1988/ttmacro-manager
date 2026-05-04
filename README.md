@@ -12,7 +12,7 @@ Tera Term用の `.ttl` マクロファイルを Excelベースで一括管理・
 - グループ別ディレクトリに `.ttl` を出力（`macros/home/` など）
 - ファイル名は **論理名_IPアドレス_ユーザ名** で生成（例: `infra01_192.168.0.10_rocky.ttl`）
 - 生成ログは `logs/generate.log`、TTL実行時のログは `logs/` 直下に出力
-- Pythonスクリプトで **WindowsのTera Termと連携可能**
+- Windows の Tera Term（`ttermpro.exe`）を `/M=<ttl>` 引数で起動
 - **用途別テンプレート**: Excelの `template` 列で行ごとに切り替え可能（空欄は `default.ttl`）
 - **--clean オプション**: グループ変更で残った旧 TTL を一括掃除（`--dry-run` で削除候補確認）
 - **環境変数によるパス上書き**: `TTMACRO_*` で BASE_DIR / EXCEL_PATH 等を個別に変更可能
@@ -70,6 +70,7 @@ ttmacro-manager/
 │   ├── ttmacro-generate.exe    # PyInstaller 成果物（任意。Git管理外）
 │   ├── ttmacro-launcher.exe    # PyInstaller 成果物（任意。Git管理外）
 │   └── launcher_config.json    # ランチャーの設定ファイル（Git管理外）
+├── build.ps1                   # exe ビルド + zip 化を自動化するスクリプト
 ├── pyproject.toml              # 依存・ツール設定（hatchling / ruff / pytest / mypy / pyinstaller）
 ├── .gitignore
 └── README.md
@@ -124,9 +125,7 @@ pip install -e .
 
 インストール後、`ttmacro-generate` と `ttmacro-launcher` の 2 つのコマンドが PATH に追加されます。
 
-インストール時にエラーが発生した場合、Visual StudioのC++デスクトップ開発環境をセットアップする必要あり。  
-詳細は以下URLを参照。  
-[Visual Studio に C および C++ サポートをインストールする](https://learn.microsoft.com/ja-jp/cpp/build/vscpp-step-0-installation?view=msvc-170)
+依存ライブラリ（openpyxl / ttkbootstrap / pyinstaller など）はすべて純 Python 実装なので、Visual Studio などのビルドツールは不要です。
 
 ---
 
@@ -141,13 +140,13 @@ copy data\servers_template.xlsx data\servers.xlsx
 
 #### Excelファイルの構成（`servers.xlsx`）
 
-| group1 | group2 | group3 | name     | host          | port | user   | password | keyfile          | post_cmd | generate | memo |
-|--------|--------|--------|----------|---------------|------|--------|----------|------------------|----------|----------|------|
-| LocationA | NAS    | 管理   | infra01  | 192.168.0.10  | 22   | rocky  | rocky123 |                  | date     | yes      | 本社NAS |
-| LocationB |        |        | infra02  | 192.168.0.11  | 22   | rocky  |          | id_ed25519.ppk   |          | yes      | 支社サーバ |
-| LocationC | 開発   | テスト | dev01    | 192.168.0.12  | 22   | dev    | devpass  |                  | ls -la   | yes      | 開発サーバ |
-| LocationC | 開発   | テスト | dev02    | 192.168.0.13  | 22   | dev    | devpass  |                  | ls -la   | yes      | 開発サーバ |
-|        |        |        |          |               |      |        |          |                  |          |          |      |
+| group1    | group2 | group3 | name    | host         | port | user  | password | keyfile        | post_cmd | generate | template | memo       |
+|-----------|--------|--------|---------|--------------|------|-------|----------|----------------|----------|----------|----------|------------|
+| LocationA | NAS    | 管理   | infra01 | 192.168.0.10 | 22   | rocky | rocky123 |                | date     | yes      |          | 本社NAS    |
+| LocationB |        |        | infra02 | 192.168.0.11 | 22   | rocky |          | id_ed25519.ppk |          | yes      |          | 支社サーバ |
+| LocationC | 開発   | テスト | dev01   | 192.168.0.12 | 22   | dev   | devpass  |                | ls -la   | yes      | nodejs   | 開発サーバ |
+| LocationC | 開発   | テスト | dev02   | 192.168.0.13 | 22   | dev   | devpass  |                | ls -la   | yes      | nodejs   | 開発サーバ |
+|           |        |        |         |              |      |       |          |                |          |          |          |            |
 
 - `generate` 列が `yes` の行だけが `.ttl` 生成対象になります。
 - `e` を検出した時点で処理終了
@@ -155,6 +154,7 @@ copy data\servers_template.xlsx data\servers.xlsx
 - `keyfile` は `keys/` ディレクトリ内のファイル名を記載してください。
 - `group1` が空欄の場合は `macros/` に直下出力されます。子グループだけの指定は無効です。
 - `post_cmd` は接続後に自動実行するコマンドを記載します。複数行の場合は改行で区切ります。
+- `template` は使用するテンプレート名（拡張子省略可）。空欄なら `default.ttl`、`nodejs` と書けば `macros/templates/nodejs.ttl` を使う。
 - `memo` は接続情報のメモを記載します。TTLファイルのヘッダーに表示されます。
 
 #### ログファイルのフォーマット
@@ -233,8 +233,9 @@ ttmacro-launcher
 
 ## 🖼 GUIランチャー画面イメージ
 
-![Tera Term GUIランチャー](images/launcher_gui.png) 
-※イメージ画像は古い
+![Tera Term GUIランチャー](images/launcher_gui.png)
+
+※ 上記画像は旧バージョンのもの。現行は ttkbootstrap の `darkly` テーマでダークモード化されており、検索ボックス・サーバ名/IP/ユーザ名の 3 列表示・接続/編集/閉じるボタンが追加されている。
 
 ## ttlマクロのパス管理の仕組み
 
@@ -282,7 +283,7 @@ Tera Termのログ設定は以下の優先順位で適用されます：
      - TTLファイルが正しいディレクトリに生成されているか
    - 解決方法：
      - `launcher_config.json`の`macros_root`を確認
-     - `generate_ttl_macros.py`を再実行
+     - `ttmacro-generate` を再実行
 
 2. **鍵ファイルが見つからない**
    - 確認事項：
@@ -354,6 +355,25 @@ Tera Termのログ設定は以下の優先順位で適用されます：
 
 PyInstaller で `bin/*.exe` を生成して、Python が入っていない端末にも配布できます。
 
+### おすすめ: build.ps1 でまとめて作成
+
+プロジェクトルートで以下を実行するだけで、exe ビルド → 配布フォルダ組み立て → zip 化まで自動化されます。
+
+```powershell
+.\build.ps1
+```
+
+成果物:
+
+- `bin/ttmacro-launcher.exe`（約 20 MB）
+- `bin/ttmacro-generate.exe`（約 16 MB）
+- `deploy/`（配布用フォルダ。`bin/` `data/` `macros/templates/` `keys/` `logs/` を含む）
+- `ttmacro-manager-v<version>.zip`（`deploy/` を圧縮したもの。配布相手に渡す）
+
+配布相手は zip を解凍 → `data/servers_template.xlsx` を `servers.xlsx` にリネーム + 編集 → `bin/ttmacro-launcher.exe` を起動、で使い始められます。
+
+### 個別にビルドしたい場合
+
 ```powershell
 # GUI ランチャー
 .venv\Scripts\pyinstaller --clean --distpath bin packaging/ttmacro-launcher.spec
@@ -362,7 +382,7 @@ PyInstaller で `bin/*.exe` を生成して、Python が入っていない端末
 .venv\Scripts\pyinstaller --clean --distpath bin packaging/ttmacro-generate.spec
 ```
 
-成果物は `bin/ttmacro-launcher.exe`（約 20 MB）と `bin/ttmacro-generate.exe`（約 16 MB）。配布時は `bin/`、`data/`、`macros/templates/`、必要なら `keys/` と空の `logs/` を含むフォルダごと渡してください。exe は `<deploy_root>/bin/` 配下に置く前提で、データファイルを相対参照します。
+exe は `<deploy_root>/bin/` 配下に置く前提で、`data/` `macros/` 等を相対参照します。`bin/` 単体で別フォルダに移動すると動かないので注意してください。
 
 ---
 
