@@ -53,6 +53,10 @@ build/
 dist/
 *.spec.bak
 
+# build.ps1 の成果物
+deploy/
+ttmacro-manager-v*.zip
+
 # Environment files
 .env
 
