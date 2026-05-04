@@ -48,6 +48,11 @@ keys/*
 *.exe
 *.msi
 
+# PyInstaller artifacts
+build/
+dist/
+*.spec.bak
+
 # Environment files
 .env
 

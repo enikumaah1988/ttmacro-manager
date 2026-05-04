@@ -25,10 +25,11 @@ dependencies = [
 # 開発依存（pip install -e ".[dev]" で入る）
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.5.0",      # Linter + フォーマッタ
-    "pytest>=8.0.0",    # テストフレームワーク
-    "pytest-cov>=5.0",  # カバレッジ計測
-    "mypy>=1.10.0",     # 型チェック
+    "ruff>=0.5.0",         # Linter + フォーマッタ
+    "pytest>=8.0.0",       # テストフレームワーク
+    "pytest-cov>=5.0",     # カバレッジ計測
+    "mypy>=1.10.0",         # 型チェック
+    "pyinstaller>=6.0.0",  # exe 配布用ビルドツール（packaging/*.spec から呼び出し）
 ]
 
 # コンソール／GUI エントリポイント
