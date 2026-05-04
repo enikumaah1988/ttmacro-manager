@@ -31,20 +31,34 @@ class TestFindTtlFilesToDelete:
         assert len(result) == 3
         assert {p.name for p in result} == {"a.ttl", "b.ttl", "c.ttl"}
 
-    def test_excludes_template_ttl(self, tmp_path: Path) -> None:
-        (tmp_path / "a.ttl").touch()
-        (tmp_path / "template.ttl").touch()
-        result = find_ttl_files_to_delete(tmp_path)
-        assert len(result) == 1
-        assert result[0].name == "a.ttl"
-
-    def test_template_ttl_in_subdirectory_also_excluded(self, tmp_path: Path) -> None:
-        """サブディレクトリ内の template.ttl も除外される（厳密にはあり得ない構成だが、防御）。"""
-        (tmp_path / "sub").mkdir()
-        (tmp_path / "sub" / "template.ttl").touch()
-        (tmp_path / "sub" / "real.ttl").touch()
-        result = find_ttl_files_to_delete(tmp_path)
+    def test_excludes_files_inside_templates_dir(self, tmp_path: Path) -> None:
+        """templates_dir 配下のファイルは削除対象から除外される。"""
+        templates = tmp_path / "templates"
+        templates.mkdir()
+        (templates / "default.ttl").touch()
+        (templates / "nodejs.ttl").touch()
+        (tmp_path / "real.ttl").touch()  # 削除対象
+        result = find_ttl_files_to_delete(tmp_path, templates_dir=templates)
         assert {p.name for p in result} == {"real.ttl"}
+
+    def test_excludes_nested_templates_subdir(self, tmp_path: Path) -> None:
+        """templates_dir 内のサブディレクトリも再帰的に除外される。"""
+        templates = tmp_path / "templates"
+        (templates / "nested").mkdir(parents=True)
+        (templates / "default.ttl").touch()
+        (templates / "nested" / "deep.ttl").touch()
+        (tmp_path / "real.ttl").touch()
+        result = find_ttl_files_to_delete(tmp_path, templates_dir=templates)
+        assert {p.name for p in result} == {"real.ttl"}
+
+    def test_no_templates_dir_means_no_exclusion(self, tmp_path: Path) -> None:
+        """templates_dir を指定しない（None）と、すべての .ttl が削除候補になる。"""
+        templates = tmp_path / "templates"
+        templates.mkdir()
+        (templates / "default.ttl").touch()
+        (tmp_path / "real.ttl").touch()
+        result = find_ttl_files_to_delete(tmp_path)
+        assert {p.name for p in result} == {"default.ttl", "real.ttl"}
 
     def test_ignores_other_extensions(self, tmp_path: Path) -> None:
         (tmp_path / "a.ttl").touch()

@@ -45,7 +45,8 @@ class TestEnvOverride:
         _clear_env(monkeypatch)
         importlib.reload(config)
         assert config.EXCEL_PATH == config.BASE_DIR / "data" / "servers.xlsx"
-        assert config.TEMPLATE_PATH == config.BASE_DIR / "macros" / "template.ttl"
+        assert config.TEMPLATES_DIR == config.BASE_DIR / "macros" / "templates"
+        assert config.TEMPLATE_PATH == config.TEMPLATES_DIR / "default.ttl"
         assert config.OUTPUT_DIR == config.BASE_DIR / "macros"
         assert config.LOGS_DIR == config.BASE_DIR / "logs"
         assert config.KEYS_DIR == config.BASE_DIR / "keys"
@@ -74,7 +75,7 @@ class TestEnvOverride:
         assert custom.resolve() == config.EXCEL_PATH
         # 他はデフォルト（BASE_DIR 起点）
         assert config.OUTPUT_DIR == config.BASE_DIR / "macros"
-        assert config.TEMPLATE_PATH == config.BASE_DIR / "macros" / "template.ttl"
+        assert config.TEMPLATE_PATH == config.TEMPLATES_DIR / "default.ttl"
 
     def test_individual_overrides_take_precedence_over_base_dir(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

@@ -212,7 +212,10 @@ class LauncherApp:
         ungrouped: list[Path] = []
 
         for ttl_path in macros_root.rglob("*.ttl"):
-            if ttl_path.name == "template.ttl":
+            rel_parts = ttl_path.relative_to(macros_root).parts
+
+            # macros/templates/ 配下はテンプレ置き場なのでツリー一覧から除外
+            if rel_parts and rel_parts[0] == "templates":
                 continue
 
             rel_path_str = str(ttl_path.relative_to(macros_root))
@@ -220,7 +223,6 @@ class LauncherApp:
             if filter_text and filter_text not in rel_path_str.lower():
                 continue
 
-            rel_parts = ttl_path.relative_to(macros_root).parts
             if len(rel_parts) == 1:
                 ungrouped.append(ttl_path)
                 continue

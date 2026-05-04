@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ttmacro.config import TEMPLATE_PATH
+from ttmacro.config import TEMPLATE_PATH, TEMPLATES_DIR
 from ttmacro.path_resolver import calculate_relative_path
 
 
@@ -27,8 +27,47 @@ def sanitize_name(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|]', "_", name)
 
 
-def load_template() -> str:
-    """TTL テンプレートを読み込む。
+def resolve_template_path(template_name: str) -> Path:
+    """Excel の ``template`` 列値からテンプレートファイルのパスを返す。
+
+    空または未指定（``""``）なら ``TEMPLATE_PATH``（デフォルト）を返す。
+    値が指定されていれば ``TEMPLATES_DIR / <name>.ttl`` を返す。
+    拡張子 ``.ttl`` の有無は許容。サブパス（例: ``"subdir/foo"``）も可。
+
+    パストラバーサル防止のため、結果が ``TEMPLATES_DIR`` の外を指している
+    場合は ``ValueError`` を投げる。実在チェックは行わない。
+
+    Args:
+        template_name: Excel の ``template`` 列の値。
+
+    Returns:
+        テンプレートファイルの絶対パス。
+
+    Raises:
+        ValueError: パスが ``TEMPLATES_DIR`` の外を指している場合。
+    """
+    if not template_name:
+        return TEMPLATE_PATH
+
+    name = template_name.strip()
+    if name.endswith(".ttl"):
+        name = name[:-4]
+
+    resolved = (TEMPLATES_DIR / f"{name}.ttl").resolve()
+    templates_root = TEMPLATES_DIR.resolve()
+    if not resolved.is_relative_to(templates_root):
+        raise ValueError(
+            f"テンプレート '{template_name}' が TEMPLATES_DIR の外を指しています: {resolved}"
+        )
+    return resolved
+
+
+def load_template(path: Path | None = None) -> str:
+    """指定されたテンプレートファイルを読み込む。
+
+    Args:
+        path: 読み込むテンプレートのパス。``None`` ならデフォルトの
+            ``TEMPLATE_PATH`` を使う（後方互換）。
 
     Returns:
         テンプレート本文の文字列。
@@ -38,19 +77,19 @@ def load_template() -> str:
         ValueError: 空ファイル、または UTF-8 として読めない場合。
         RuntimeError: その他の読み込みエラー。
     """
-    if not TEMPLATE_PATH.exists():
-        raise FileNotFoundError(
-            f"テンプレートファイルが見つかりません: {TEMPLATE_PATH}"
-        )
+    target = path if path is not None else TEMPLATE_PATH
+
+    if not target.exists():
+        raise FileNotFoundError(f"テンプレートファイルが見つかりません: {target}")
 
     try:
-        content = TEMPLATE_PATH.read_text(encoding="utf-8")
+        content = target.read_text(encoding="utf-8")
         if not content.strip():
-            raise ValueError("テンプレートファイルが空です")
+            raise ValueError(f"テンプレートファイルが空です: {target}")
         return content
     except UnicodeDecodeError as e:
         raise ValueError(
-            f"テンプレートファイルの文字エンコーディングが不正です: {TEMPLATE_PATH}"
+            f"テンプレートファイルの文字エンコーディングが不正です: {target}"
         ) from e
     except (FileNotFoundError, ValueError):
         # 上で投げた例外はそのまま伝播

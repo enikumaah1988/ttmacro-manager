@@ -35,7 +35,7 @@ data/servers.xlsx
 
 # TTL files
 macros/**/*.ttl
-!macros/template.ttl
+!macros/templates/**/*.ttl
 
 # SSH keys
 keys/*

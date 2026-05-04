@@ -154,4 +154,5 @@ def extract_row_data(row: pd.Series) -> dict[str, str]:
         "group1": safe_get(row, "group1"),
         "group2": safe_get(row, "group2"),
         "group3": safe_get(row, "group3"),
+        "template": safe_get(row, "template"),  # 空ならデフォルトテンプレ
     }

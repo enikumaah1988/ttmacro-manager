@@ -234,3 +234,44 @@ class TestExtractRowData:
         )
         data = extract_row_data(row)
         assert data["name"] == "srv_01_test"
+
+    def test_template_field_extracted(self) -> None:
+        """template 列の値が抽出される。"""
+        row = pd.Series(
+            {
+                "name": "srv",
+                "host": "10.0.0.1",
+                "port": 22,
+                "user": "admin",
+                "password": "",
+                "keyfile": "",
+                "post_cmd": "",
+                "memo": "",
+                "group1": "",
+                "group2": "",
+                "group3": "",
+                "template": "  nodejs  ",
+            }
+        )
+        data = extract_row_data(row)
+        assert data["template"] == "nodejs"
+
+    def test_template_missing_defaults_to_empty(self) -> None:
+        """template 列が無い場合、空文字になる（既存 Excel への後方互換）。"""
+        row = pd.Series(
+            {
+                "name": "srv",
+                "host": "10.0.0.1",
+                "port": 22,
+                "user": "admin",
+                "password": "",
+                "keyfile": "",
+                "post_cmd": "",
+                "memo": "",
+                "group1": "",
+                "group2": "",
+                "group3": "",
+            }
+        )
+        data = extract_row_data(row)
+        assert data["template"] == ""

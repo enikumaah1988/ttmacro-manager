@@ -12,6 +12,7 @@ import argparse
 import sys
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 from ttmacro import path_resolver, ttl_renderer
 from ttmacro.config import BASE_DIR, EXCEL_PATH
@@ -117,9 +118,10 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
         # クリーンアップフェーズ（--clean 指定時のみ）
         if args.clean:
             from ttmacro import cleaner
-            from ttmacro.config import OUTPUT_DIR
+            from ttmacro.config import OUTPUT_DIR, TEMPLATES_DIR
 
-            targets = cleaner.find_ttl_files_to_delete(OUTPUT_DIR)
+            # TEMPLATES_DIR 配下を保護（テンプレートを誤削除しない）
+            targets = cleaner.find_ttl_files_to_delete(OUTPUT_DIR, TEMPLATES_DIR)
             existing_empty = cleaner.find_empty_subdirs(OUTPUT_DIR)
             logger.info(
                 f"🧹 クリーン対象: TTL {len(targets)} 件、"
@@ -158,7 +160,9 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
             sys.exit(1)
 
         print("[2/4] テンプレート・Excel 読み込み...", file=sys.stderr, flush=True)
-        template = ttl_renderer.load_template()
+        # 行ごとに異なるテンプレを許容するため、ここでは Excel のみ先読み。
+        # テンプレは行処理ループでパス解決して読み込む（同一パスはキャッシュ）。
+        template_cache: dict[Path, str] = {}
         df = excel_loader.load_excel_data()
         timestamp = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
@@ -228,6 +232,23 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
                 # 行データの抽出と TTL 生成
                 data = excel_loader.extract_row_data(row)
                 target_dir = path_resolver.get_target_directory(data)
+
+                # テンプレ解決＋キャッシュ。失敗はその行だけスキップ。
+                try:
+                    template_path = ttl_renderer.resolve_template_path(data["template"])
+                    if template_path not in template_cache:
+                        template_cache[template_path] = ttl_renderer.load_template(
+                            template_path
+                        )
+                    template = template_cache[template_path]
+                except (FileNotFoundError, ValueError, RuntimeError) as e:
+                    logger.error(
+                        f"❌ No.{row_num} テンプレート読込エラー "
+                        f"(template='{data['template']}'): {e}"
+                    )
+                    error_count += 1
+                    continue
+
                 content = ttl_renderer.generate_ttl_content(
                     data, template, timestamp, target_dir
                 )

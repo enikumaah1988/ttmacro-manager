@@ -7,7 +7,8 @@
 
 - ``TTMACRO_BASE_DIR``: プロジェクトルート（他のパスのデフォルト起点）
 - ``TTMACRO_EXCEL_PATH``: Excel 台帳ファイル
-- ``TTMACRO_TEMPLATE_PATH``: TTL テンプレートファイル
+- ``TTMACRO_TEMPLATE_PATH``: デフォルトテンプレート（Excel template 列が空の時）
+- ``TTMACRO_TEMPLATES_DIR``: 追加テンプレート格納ディレクトリ
 - ``TTMACRO_OUTPUT_DIR``: TTL 生成先ディレクトリ
 - ``TTMACRO_LOGS_DIR``: ログ出力先ディレクトリ
 - ``TTMACRO_KEYS_DIR``: 鍵ファイル格納ディレクトリ
@@ -46,7 +47,10 @@ _DEFAULT_BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # 個別の環境変数 > BASE_DIR 起点デフォルト の優先順位
 BASE_DIR = _env_path("TTMACRO_BASE_DIR", _DEFAULT_BASE_DIR)
 EXCEL_PATH = _env_path("TTMACRO_EXCEL_PATH", BASE_DIR / "data" / "servers.xlsx")
-TEMPLATE_PATH = _env_path("TTMACRO_TEMPLATE_PATH", BASE_DIR / "macros" / "template.ttl")
+TEMPLATES_DIR = _env_path("TTMACRO_TEMPLATES_DIR", BASE_DIR / "macros" / "templates")
+# デフォルトテンプレートは TEMPLATES_DIR/default.ttl を採用。
+# Excel の template 列が空の行はこのファイルが使われる。
+TEMPLATE_PATH = _env_path("TTMACRO_TEMPLATE_PATH", TEMPLATES_DIR / "default.ttl")
 OUTPUT_DIR = _env_path("TTMACRO_OUTPUT_DIR", BASE_DIR / "macros")
 LOGS_DIR = _env_path("TTMACRO_LOGS_DIR", BASE_DIR / "logs")
 KEYS_DIR = _env_path("TTMACRO_KEYS_DIR", BASE_DIR / "keys")

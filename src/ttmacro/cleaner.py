@@ -1,7 +1,7 @@
 """生成済み TTL マクロと空ディレクトリの削除モジュール。
 
 CLI の ``--clean`` オプション時に呼び出され、グループ階層変更で残った
-旧 TTL ファイルを掃除する。``template.ttl`` は対象外。
+旧 TTL ファイルを掃除する。``templates_dir`` 配下のテンプレートは対象外。
 """
 
 from __future__ import annotations
@@ -9,11 +9,17 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def find_ttl_files_to_delete(output_dir: Path) -> list[Path]:
-    """削除対象の TTL 一覧を返す（``template.ttl`` 以外の ``*.ttl`` 全件）。
+def find_ttl_files_to_delete(
+    output_dir: Path, templates_dir: Path | None = None
+) -> list[Path]:
+    """削除対象の TTL 一覧を返す。
+
+    ``templates_dir`` を指定すると、そのディレクトリ配下のファイルは
+    削除対象から除外する（テンプレートを誤って削除しないため）。
 
     Args:
         output_dir: macros ルートディレクトリ。
+        templates_dir: 除外するテンプレートディレクトリ。``None`` なら除外なし。
 
     Returns:
         削除対象 TTL の絶対パス一覧。``output_dir`` 不在時は空リスト。
@@ -21,7 +27,18 @@ def find_ttl_files_to_delete(output_dir: Path) -> list[Path]:
     if not output_dir.exists():
         return []
 
-    return [ttl for ttl in output_dir.rglob("*.ttl") if ttl.name != "template.ttl"]
+    templates_resolved = templates_dir.resolve() if templates_dir is not None else None
+
+    result: list[Path] = []
+    for ttl in output_dir.rglob("*.ttl"):
+        if templates_resolved is not None:
+            try:
+                if ttl.resolve().is_relative_to(templates_resolved):
+                    continue
+            except (OSError, ValueError):
+                pass
+        result.append(ttl)
+    return result
 
 
 def find_empty_subdirs(output_dir: Path) -> list[Path]:

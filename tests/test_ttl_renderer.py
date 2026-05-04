@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from ttmacro.ttl_renderer import generate_ttl_content, sanitize_name
+from ttmacro.ttl_renderer import (
+    generate_ttl_content,
+    load_template,
+    resolve_template_path,
+    sanitize_name,
+)
 
 
 class TestSanitizeName:
@@ -111,3 +116,85 @@ class TestGenerateTtlContent:
         result = generate_ttl_content(base_data, "{post_commands}", "ts", tmp_path)
         # 空行が混じっていても sendln は 2 つだけ
         assert result.count("sendln") == 2
+
+
+class TestResolveTemplatePath:
+    """resolve_template_path のテスト。"""
+
+    def test_empty_returns_default(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """空文字ならデフォルト TEMPLATE_PATH を返す。"""
+        default = tmp_path / "macros" / "template.ttl"
+        monkeypatch.setattr("ttmacro.ttl_renderer.TEMPLATE_PATH", default)
+        assert resolve_template_path("") == default
+
+    def test_named_resolves_under_templates_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """名前指定で TEMPLATES_DIR/<name>.ttl を返す。"""
+        templates = tmp_path / "macros" / "templates"
+        templates.mkdir(parents=True)
+        monkeypatch.setattr("ttmacro.ttl_renderer.TEMPLATES_DIR", templates)
+        result = resolve_template_path("nodejs")
+        assert result == (templates / "nodejs.ttl").resolve()
+
+    def test_extension_optional(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """``.ttl`` 拡張子付きで指定しても付けなくても同じ結果。"""
+        templates = tmp_path / "macros" / "templates"
+        templates.mkdir(parents=True)
+        monkeypatch.setattr("ttmacro.ttl_renderer.TEMPLATES_DIR", templates)
+        with_ext = resolve_template_path("nodejs.ttl")
+        without_ext = resolve_template_path("nodejs")
+        assert with_ext == without_ext
+
+    def test_subpath_allowed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """サブディレクトリを含む名前も許容（'subdir/foo' → templates/subdir/foo.ttl）。"""
+        templates = tmp_path / "macros" / "templates"
+        templates.mkdir(parents=True)
+        monkeypatch.setattr("ttmacro.ttl_renderer.TEMPLATES_DIR", templates)
+        result = resolve_template_path("subdir/foo")
+        assert result == (templates / "subdir" / "foo.ttl").resolve()
+
+    def test_path_traversal_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """``../`` で TEMPLATES_DIR の外を指すとエラー。"""
+        templates = tmp_path / "macros" / "templates"
+        templates.mkdir(parents=True)
+        monkeypatch.setattr("ttmacro.ttl_renderer.TEMPLATES_DIR", templates)
+        with pytest.raises(ValueError, match="TEMPLATES_DIR の外"):
+            resolve_template_path("../../etc/passwd")
+
+
+class TestLoadTemplateWithPath:
+    """load_template の path 引数対応テスト。"""
+
+    def test_loads_specified_path(self, tmp_path: Path) -> None:
+        custom = tmp_path / "custom.ttl"
+        custom.write_text("custom content", encoding="utf-8")
+        assert load_template(custom) == "custom content"
+
+    def test_default_when_no_path(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """path 省略時は TEMPLATE_PATH を読む（後方互換）。"""
+        default = tmp_path / "default.ttl"
+        default.write_text("default content", encoding="utf-8")
+        monkeypatch.setattr("ttmacro.ttl_renderer.TEMPLATE_PATH", default)
+        assert load_template() == "default content"
+
+    def test_raises_when_specified_path_missing(self, tmp_path: Path) -> None:
+        missing = tmp_path / "nonexistent.ttl"
+        with pytest.raises(FileNotFoundError):
+            load_template(missing)
+
+    def test_raises_when_empty_file(self, tmp_path: Path) -> None:
+        empty = tmp_path / "empty.ttl"
+        empty.write_text("", encoding="utf-8")
+        with pytest.raises(ValueError, match="空"):
+            load_template(empty)
