@@ -2,8 +2,9 @@
 
 argparse でコマンドライン引数を解析し、Excel 台帳から TTL を生成する。
 
-pandas を引きずる excel_loader は ``generate_ttl_macros()`` 内で遅延 import
-する。これにより ``--help`` などは pandas 未インストール環境でも動作する。
+openpyxl に依存する excel_loader は ``generate_ttl_macros()`` 内で遅延 import
+する。これにより ``--help`` や ``--clean --dry-run`` は openpyxl 未インストール
+環境でも動作する。
 """
 
 from __future__ import annotations
@@ -144,13 +145,15 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
                 f"空ディレクトリ {dir_count} 件を削除"
             )
 
-        # pandas を引きずる excel_loader はここで遅延 import
-        # （--help と --clean --dry-run を pandas 未導入環境でも動かすため）
+        # openpyxl に依存する excel_loader はここで遅延 import
+        # （--help と --clean --dry-run を openpyxl 未導入環境でも動かすため）
         try:
             from ttmacro import excel_loader
         except ImportError as e:
             print(
-                f"pandas のインポートに失敗しました: {e}", file=sys.stderr, flush=True
+                f"openpyxl のインポートに失敗しました: {e}",
+                file=sys.stderr,
+                flush=True,
             )
             print(
                 '仮想環境を有効にして、pip install -e ".[dev]" を実行してください。',
@@ -163,7 +166,7 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
         # 行ごとに異なるテンプレを許容するため、ここでは Excel のみ先読み。
         # テンプレは行処理ループでパス解決して読み込む（同一パスはキャッシュ）。
         template_cache: dict[Path, str] = {}
-        df = excel_loader.load_excel_data()
+        headers, rows = excel_loader.load_excel_data()
         timestamp = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
         logger.info(f"読み込み元: {EXCEL_PATH}")
@@ -171,27 +174,32 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
 
         # 必要な列の存在チェック
         required_columns = ["No.", "name", "host", "user", "generate"]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        missing_columns = [col for col in required_columns if col not in headers]
         if missing_columns:
             raise ValueError(f"必要な列が見つかりません: {', '.join(missing_columns)}")
 
         # 行番号が指定されている場合
         if args.row is not None:
-            matching_rows = df[df["No."] == args.row]
-            if matching_rows.empty:
+            matching = [
+                (idx, r) for idx, r in enumerate(rows) if r.get("No.") == args.row
+            ]
+            if not matching:
                 logger.error(f"❌ 指定されたNo. {args.row} は見つかりませんでした")
                 return
-            rows_to_process = [(args.row, matching_rows.iloc[0])]
+            rows_to_process = [matching[0]]
             logger.info(f"📝 No.{args.row} のサーバーを処理します")
         else:
-            rows_to_process = df.iterrows()
+            rows_to_process = list(enumerate(rows))
             # generate=yes の行数を事前に表示
             generate_count = sum(
                 1
-                for _, r in df.iterrows()
-                if str(r.get("generate", "")).strip().lower() in ("yes", "true", "1")
+                for r in rows
+                if str(r.get("generate", "") or "").strip().lower()
+                in ("yes", "true", "1")
             )
-            logger.info(f"generate=yes の行: {generate_count} 件（全 {len(df)} 行中）")
+            logger.info(
+                f"generate=yes の行: {generate_count} 件（全 {len(rows)} 行中）"
+            )
             if generate_count == 0:
                 logger.warning(
                     "⚠️ 対象行が0件です。Excelの generate 列に yes を指定した行がありますか？"
@@ -204,11 +212,11 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
         for idx, row in rows_to_process:
             try:
                 # 空白行はスキップ
-                if row.isnull().all():
+                if excel_loader.is_blank_row(row):
                     continue
 
                 # 生成フラグの確認（--row 指定時はフラグ無視）
-                generate_flag = str(row.get("generate", "")).strip().lower()
+                generate_flag = str(row.get("generate", "") or "").strip().lower()
                 if args.row is None and generate_flag == "e":
                     logger.info("⏹️ 'e' を検出したため、処理を終了します。")
                     break
@@ -216,8 +224,14 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
                 if args.row is None and generate_flag not in ("yes", "true", "1"):
                     continue
 
-                # 行データの検証
-                row_num = row.get("No.", idx + 1)
+                # 行データの検証（No. 列が int でない/空ならインデックス番号を流用）
+                no_value = row.get("No.")
+                try:
+                    row_num = (
+                        idx + 1 if excel_loader.is_blank(no_value) else int(no_value)  # type: ignore[arg-type]
+                    )
+                except (TypeError, ValueError):
+                    row_num = idx + 1
                 is_valid, validation_errors = excel_loader.validate_row_data(
                     row, row_num
                 )
@@ -265,8 +279,18 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
                     error_count += 1
 
             except Exception as e:
-                row_num = row.get("No.", idx + 1) if not row.isnull().all() else idx + 1
-                logger.error(f"❌ No.{row_num} 処理エラー: {e}")
+                # 例外時のログ用 No.（int 化失敗時はインデックス番号で代替）
+                no_value = row.get("No.")
+                try:
+                    fallback_num: int = (
+                        idx + 1
+                        if excel_loader.is_blank_row(row)
+                        or excel_loader.is_blank(no_value)
+                        else int(no_value)  # type: ignore[arg-type]
+                    )
+                except (TypeError, ValueError):
+                    fallback_num = idx + 1
+                logger.error(f"❌ No.{fallback_num} 処理エラー: {e}")
                 error_count += 1
 
         print("[4/4] 完了", file=sys.stderr, flush=True)

@@ -18,9 +18,8 @@ authors = [{ name = "kazuhiko.kumano" }]
 
 # 本番依存（pip install . で入る）
 dependencies = [
-    "pandas>=2.0.0",
-    "openpyxl>=3.0.0",
-    "ttkbootstrap>=1.10.0",  # GUI ランチャーのモダンテーマ
+    "openpyxl>=3.0.0",        # Excel 台帳の読み込み（pandas は使わない）
+    "ttkbootstrap>=1.10.0",   # GUI ランチャーのモダンテーマ
 ]
 
 # 開発依存（pip install -e ".[dev]" で入る）

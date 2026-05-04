@@ -1,8 +1,7 @@
 """Excel 台帳の読み込み・行検証・行データ抽出。
 
-このモジュールは pandas に依存する。pandas が未導入の環境では import で
-失敗するため、呼び出し元（cli.py）は遅延 import でユーザーフレンドリーな
-メッセージに変換する。
+このモジュールは ``openpyxl`` を直接使い、pandas には依存しない。
+1 行は ``dict[str, Any]`` で表現し、空セルは ``None``。
 """
 
 from __future__ import annotations
@@ -10,81 +9,135 @@ from __future__ import annotations
 import ipaddress
 import math
 import re
+from typing import Any
 
-import pandas as pd
+from openpyxl import load_workbook
 
 from ttmacro.config import EXCEL_PATH, KEYS_DIR
 from ttmacro.ttl_renderer import sanitize_name
 
 
-def safe_str(val: object) -> str:
-    """Excel の NaN を空文字に変換する。
+def is_blank(value: Any) -> bool:
+    """セル値が空相当か判定する。
+
+    ``None``、空文字（strip 後）、``float('nan')`` のいずれかなら True。
 
     Args:
-        val: Excel セルから読んだ生の値。
+        value: 判定対象。
 
     Returns:
-        NaN なら空文字、それ以外は str() を strip した文字列。
+        空相当なら True。
     """
-    if isinstance(val, float) and math.isnan(val):
+    return (
+        value is None
+        or (isinstance(value, str) and value.strip() == "")
+        or (isinstance(value, float) and math.isnan(value))
+    )
+
+
+def is_blank_row(row: dict[str, Any]) -> bool:
+    """行の全セルが空相当なら True。"""
+    return all(is_blank(v) for v in row.values())
+
+
+def safe_str(val: Any) -> str:
+    """セル値を文字列化、空相当なら空文字。"""
+    if is_blank(val):
         return ""
     return str(val).strip()
 
 
-def safe_get(row: pd.Series, key: str, default: str = "") -> str:
-    """行データから安全に値を取得し、NaN なら default を返す。
+def safe_get(row: dict[str, Any], key: str, default: str = "") -> str:
+    """行 dict から値を取得し、空相当なら default を返す。
 
     Args:
-        row: pandas Series（1行分の Excel データ）。
+        row: 行データ（列名 → セル値）。
         key: 取得するカラム名。
-        default: NaN 時のフォールバック値。
+        default: 空相当時のフォールバック値。
 
     Returns:
         値の文字列表現（strip 済み）。
     """
-    value = row.get(key, default)
-    return str(value if pd.notna(value) else default).strip()
+    value = row.get(key)
+    if is_blank(value):
+        return default
+    return str(value).strip()
 
 
-def load_excel_data() -> pd.DataFrame:
-    """Excel 台帳ファイルを読み込む。
+def load_excel_data() -> tuple[list[str], list[dict[str, Any]]]:
+    """Excel 台帳ファイルを読み込み、ヘッダと行データを返す。
+
+    1 行目をヘッダとして扱い、それ以降を ``dict[列名, セル値]`` の
+    リストとして返す（空白行も含む）。
 
     Returns:
-        Excel から読み込んだ DataFrame。
+        ``(headers, rows)`` のタプル。
 
     Raises:
         FileNotFoundError: ファイルが存在しない場合。
         PermissionError: ファイルが他のアプリで開かれている場合。
-        ValueError: ファイルが空の場合。
+        ValueError: ファイルが空、またはヘッダ行が無い場合。
         RuntimeError: その他の読み込みエラー。
     """
     if not EXCEL_PATH.exists():
         raise FileNotFoundError(f"Excelファイルが見つかりません: {EXCEL_PATH}")
 
     try:
-        with open(EXCEL_PATH, "rb") as f:
-            df = pd.read_excel(f, engine="openpyxl")
-            if df.empty:
-                raise ValueError("Excelファイルが空です")
-            return df
+        # data_only=True で数式の評価結果を取得（生の数式ではなく）
+        wb = load_workbook(EXCEL_PATH, read_only=True, data_only=True)
+        ws = wb.active
+        if ws is None:
+            wb.close()
+            raise ValueError("Excelファイルにアクティブなシートがありません")
+
+        rows_iter = ws.iter_rows(values_only=True)
+        try:
+            header_row = next(rows_iter)
+        except StopIteration:
+            wb.close()
+            raise ValueError("Excelファイルが空です") from None
+
+        # 末尾の None（Excel が空列をパディングする）を切り捨てる
+        headers = list(header_row)
+        while headers and headers[-1] is None:
+            headers.pop()
+        if not headers:
+            wb.close()
+            raise ValueError("Excelファイルにヘッダ行がありません")
+
+        rows: list[dict[str, Any]] = []
+        for row_values in rows_iter:
+            row_dict: dict[str, Any] = {}
+            for h, v in zip(headers, row_values, strict=False):
+                if h is None:
+                    continue  # 中間 None ヘッダは無視（防御）
+                row_dict[h] = v
+            rows.append(row_dict)
+
+        wb.close()
+
+        if not rows:
+            raise ValueError("Excelファイルにデータ行がありません")
+
+        # str 型のヘッダのみ返却（型ヒントを満たすため）
+        return [str(h) for h in headers if h is not None], rows
     except PermissionError as e:
         raise PermissionError(f"Excelファイルが他で開かれています: {EXCEL_PATH}") from e
     except (FileNotFoundError, ValueError):
-        # 上で投げた例外はそのまま伝播
         raise
     except Exception as e:
         raise RuntimeError(f"Excelファイル読み込みエラー: {e}") from e
 
 
-def validate_row_data(row: pd.Series, row_num: int) -> tuple[bool, list[str]]:
+def validate_row_data(row: dict[str, Any], row_num: int) -> tuple[bool, list[str]]:
     """行データの妥当性を検証する。
 
     必須項目（name/host/user）、ホスト名/IP の形式、ポート番号の範囲、
     keyfile の存在をチェックする。
 
     Args:
-        row: 検証対象の行（pandas Series）。
-        row_num: ログ用の行番号（現状は未使用、将来用に保持）。
+        row: 検証対象の行（dict）。
+        row_num: ログ用の行番号（現状未使用、将来用に保持）。
 
     Returns:
         ``(is_valid, errors)`` のタプル。
@@ -94,11 +147,11 @@ def validate_row_data(row: pd.Series, row_num: int) -> tuple[bool, list[str]]:
     # 必須フィールドチェック
     required_fields = ["name", "host", "user"]
     for field in required_fields:
-        if pd.isna(row.get(field)) or str(row.get(field, "")).strip() == "":
+        if is_blank(row.get(field)):
             errors.append(f"必須項目 '{field}' が空です")
 
     # IPアドレス/ホスト名チェック
-    host = str(row.get("host", "")).strip()
+    host = safe_str(row.get("host"))
     if host:
         try:
             ipaddress.ip_address(host)
@@ -109,9 +162,9 @@ def validate_row_data(row: pd.Series, row_num: int) -> tuple[bool, list[str]]:
 
     # ポート番号チェック
     port = row.get("port")
-    if pd.notna(port):
+    if not is_blank(port):
         try:
-            port_num = int(port)
+            port_num = int(port)  # type: ignore[arg-type]
             if not (1 <= port_num <= 65535):
                 errors.append(f"ポート番号 {port_num} は範囲外です (1-65535)")
         except (ValueError, TypeError):
@@ -127,26 +180,29 @@ def validate_row_data(row: pd.Series, row_num: int) -> tuple[bool, list[str]]:
     return len(errors) == 0, errors
 
 
-def extract_row_data(row: pd.Series) -> dict[str, str]:
+def extract_row_data(row: dict[str, Any]) -> dict[str, str]:
     """行データから TTL 生成に必要な情報を抽出する。
 
     Args:
-        row: 抽出元の行（pandas Series）。
+        row: 抽出元の行（dict）。
 
     Returns:
-        name/host/port/user/password/keyfile_name/post_cmd/memo/group1-3 を
-        含む辞書。
+        name/host/port/user/password/keyfile_name/post_cmd/memo/group1-3/template
+        を含む辞書。
     """
     # メモ内の改行・タブは半角空白に置換（TTL コメントが壊れないように）
     memo = (
         safe_get(row, "memo").replace("\r", " ").replace("\n", " ").replace("\t", " ")
     )
 
+    port_value = row.get("port")
+    port_str = str(int(port_value)) if not is_blank(port_value) else "22"  # type: ignore[arg-type]
+
     return {
-        "name": sanitize_name(str(row["name"]).strip()),
-        "host": str(row["host"]).strip(),
-        "port": str(int(row["port"])) if pd.notna(row["port"]) else "22",
-        "user": str(row["user"]).strip(),
+        "name": sanitize_name(safe_str(row.get("name"))),
+        "host": safe_str(row.get("host")),
+        "port": port_str,
+        "user": safe_str(row.get("user")),
         "password": safe_get(row, "password"),
         "keyfile_name": safe_get(row, "keyfile"),
         "post_cmd": safe_get(row, "post_cmd"),
