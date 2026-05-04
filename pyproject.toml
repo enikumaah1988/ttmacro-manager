@@ -20,6 +20,7 @@ authors = [{ name = "kazuhiko.kumano" }]
 dependencies = [
     "pandas>=2.0.0",
     "openpyxl>=3.0.0",
+    "ttkbootstrap>=1.10.0",  # GUI ランチャーのモダンテーマ
 ]
 
 # 開発依存（pip install -e ".[dev]" で入る）

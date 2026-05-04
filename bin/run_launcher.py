@@ -8,16 +8,45 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 import tkinter as tk
+from collections.abc import Callable
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
+from typing import Any
+
+import ttkbootstrap as ttk  # ttkbootstrap が ttk を拡張：API は ttk 互換 + bootstyle 引数
 
 logger = logging.getLogger(__name__)
 
 CONFIG_FILE = Path(__file__).resolve().parent / "launcher_config.json"
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _parse_ttl_filename(filename: str) -> tuple[str, str, str]:
+    """生成器のレイアウト '<name>_<host>_<user>.ttl' を逆解析する。
+
+    Args:
+        filename: TTL ファイル名（拡張子の有無は問わない）。
+
+    Returns:
+        ``(name, host, user)`` のタプル。レイアウトに合致しない場合
+        （自作ファイル・アンダースコアが少ないファイル・host 部が
+        IP/FQDN らしくないファイル等）は ``(拡張子なしのファイル名, '-', '-')``
+        を返す。
+    """
+    stem = filename[:-4] if filename.endswith(".ttl") else filename
+    # 後ろから 2 回分割して最大 3 要素にする（name に _ が含まれていてもよい）
+    parts = stem.rsplit("_", 2)
+    if len(parts) == 3:
+        name, host, user = parts
+        # host が IP または FQDN らしさを満たす
+        # （英数字/ドット/ハイフンのみ、かつドットを含む or 先頭が数字）
+        if re.match(r"^[a-zA-Z0-9.-]+$", host) and ("." in host or host[:1].isdigit()):
+            return name, host, user
+    return stem, "-", "-"
 
 
 class LauncherApp:
@@ -34,9 +63,13 @@ class LauncherApp:
         """
         self.root = root
         self.root.title("Tera Term マクロランチャー")
+        # 初期ウィンドウサイズ（ツリーで多めの行が見えるよう縦長め）
+        self.root.geometry("1100x700")
+        self.root.minsize(800, 500)
 
         self.macros_dir = tk.StringVar(master=root, value="")
         self.tterm_path = tk.StringVar(master=root, value="")
+        self.search_query = tk.StringVar(master=root, value="")
 
         # notepad のフルパスを取得（Windows 標準なので通常見つかるが、見つからない場合は None）
         self.preferred_editor: str | None = shutil.which("notepad")
@@ -46,6 +79,7 @@ class LauncherApp:
         self.macros_dir.set(config.get("macros_root", ""))
 
         self._build_config_frame()
+        self._build_search_frame()
         self._build_tree_frame()
         self._build_bottom_frame()
         self._build_tree()
@@ -89,19 +123,19 @@ class LauncherApp:
         """ツリーで選択されている TTL ファイルの絶対パスを返す。
 
         Returns:
-            選択中 TTL の絶対パス。未選択・取得失敗時は None。
+            選択中 TTL の絶対パス。未選択・フォルダ選択時・取得失敗時は None。
         """
         selected = self.tree.selection()
         if not selected:
             return None
 
-        values = self.tree.item(selected[0], "values")
-        if not values:
+        # 'path' 列の値を取得（フォルダ行は空文字なので None 扱い）
+        rel_path_str = self.tree.set(selected[0], "path")
+        if not rel_path_str:
             return None
 
         try:
-            relative_path = Path(values[0])
-            ttl_path = Path(self.macros_dir.get()) / relative_path
+            ttl_path = Path(self.macros_dir.get()) / rel_path_str
             return ttl_path.resolve()
         except (OSError, ValueError) as e:
             logger.error("選択 TTL のパス解決に失敗: %s", e)
@@ -163,8 +197,9 @@ class LauncherApp:
     def _build_tree(self) -> None:
         """macros_dir を再走査してツリーを再構築する。
 
-        サブディレクトリ階層をフォルダノードとして表示し、直下の TTL は
-        「未分類」フォルダに集める。template.ttl は対象外。
+        ``self.search_query`` が非空ならファイル名・グループパスに対する
+        部分一致（大文字小文字無視）でフィルタする。フィルタ時は親フォルダを
+        自動展開して見つけやすくする。template.ttl は常に対象外。
         """
         self.tree.delete(*self.tree.get_children())
 
@@ -172,11 +207,19 @@ class LauncherApp:
         if not macros_root.exists():
             return
 
+        filter_text = self.search_query.get().strip().lower()
+
         ungrouped: list[Path] = []
 
         for ttl_path in macros_root.rglob("*.ttl"):
             if ttl_path.name == "template.ttl":
                 continue
+
+            rel_path_str = str(ttl_path.relative_to(macros_root))
+            # フィルタ：相対パス全体（フォルダ名 + ファイル名）に対する部分一致
+            if filter_text and filter_text not in rel_path_str.lower():
+                continue
+
             rel_parts = ttl_path.relative_to(macros_root).parts
             if len(rel_parts) == 1:
                 ungrouped.append(ttl_path)
@@ -187,9 +230,14 @@ class LauncherApp:
                 node_id = "/".join(rel_parts[: i + 1])
                 if not self.tree.exists(node_id):
                     if i == len(rel_parts) - 1:
-                        rel_path = str(ttl_path.relative_to(macros_root))
+                        # leaf：ファイル名をパースして 4 列に分配
+                        name, host, user = _parse_ttl_filename(ttl_path.name)
                         self.tree.insert(
-                            parent, "end", iid=node_id, text=part, values=[rel_path]
+                            parent,
+                            "end",
+                            iid=node_id,
+                            text="",
+                            values=[name, host, user, rel_path_str],
                         )
                     else:
                         self.tree.insert(parent, "end", iid=node_id, text=f"📁 {part}")
@@ -201,83 +249,174 @@ class LauncherApp:
             for ttl_path in ungrouped:
                 leaf_id = f"ungrouped/{ttl_path.name}"
                 rel_path = str(ttl_path.relative_to(macros_root))
+                name, host, user = _parse_ttl_filename(ttl_path.name)
                 self.tree.insert(
                     "ungrouped",
                     "end",
                     iid=leaf_id,
-                    text=ttl_path.name,
-                    values=[rel_path],
+                    text="",
+                    values=[name, host, user, rel_path],
                 )
+
+        # フィルタ適用時は全フォルダを展開して見つけやすくする
+        if filter_text:
+            self._expand_all_folders()
+
+    def _expand_all_folders(self) -> None:
+        """ツリー上の全フォルダノードを展開する。"""
+        for iid in self.tree.get_children():
+            self._expand_recursive(iid)
+
+    def _expand_recursive(self, iid: str) -> None:
+        """再帰的にノードを展開する（子を持つノードのみ）。"""
+        children = self.tree.get_children(iid)
+        if children:
+            self.tree.item(iid, open=True)
+            for child in children:
+                self._expand_recursive(child)
+
+    def _on_clear_search(self) -> None:
+        """検索ボックスをクリアしてツリーを再描画する。"""
+        self.search_query.set("")
+        self._build_tree()
 
     # --- ウィジェット構築 ---
 
     def _build_config_frame(self) -> None:
-        """上部のパス入力フレームを構築する。"""
-        frame = tk.Frame(self.root)
+        """上部のパス入力フレームを構築する。
+
+        ttkbootstrap のボタンは標準 ttk よりパディングが厚いため、
+        grid セルに pady=4 を入れて行間が詰まって見えないようにする。
+        """
+        frame = ttk.Frame(self.root)
         frame.pack(fill=tk.X, padx=10, pady=5)
 
         # Tera Term 行
-        tk.Label(frame, text="Tera Termのパス:").grid(row=0, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.tterm_path, width=60).grid(
-            row=0, column=1, padx=5
+        ttk.Label(frame, text="Tera Termのパス:").grid(
+            row=0, column=0, sticky="w", pady=4
         )
-        tk.Button(
-            frame,
-            text="参照",
-            command=lambda: self.tterm_path.set(
-                filedialog.askopenfilename(filetypes=[("実行ファイル", "*.exe")])
-            ),
-        ).grid(row=0, column=2, padx=5)
-        tk.Button(frame, text="保存", command=self._save_config).grid(
-            row=0, column=3, padx=5
+        ttk.Entry(frame, textvariable=self.tterm_path, width=60).grid(
+            row=0, column=1, padx=5, pady=4
+        )
+        ttk.Button(frame, text="参照", command=self._on_browse_tterm, width=8).grid(
+            row=0, column=2, padx=5, pady=4
+        )
+        ttk.Button(frame, text="設定保存", command=self._save_config, width=10).grid(
+            row=0, column=3, padx=5, pady=4
         )
 
         # macros_root 行
-        tk.Label(frame, text="TTLマクロルート:").grid(row=1, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.macros_dir, width=60).grid(
-            row=1, column=1, padx=5
+        ttk.Label(frame, text="TTLマクロルート:").grid(
+            row=1, column=0, sticky="w", pady=4
         )
-        tk.Button(
-            frame,
-            text="参照",
-            command=lambda: self.macros_dir.set(filedialog.askdirectory()),
-        ).grid(row=1, column=2, padx=5)
-        tk.Button(frame, text="再読込", command=self._build_tree).grid(
-            row=1, column=3, padx=5
+        ttk.Entry(frame, textvariable=self.macros_dir, width=60).grid(
+            row=1, column=1, padx=5, pady=4
+        )
+        ttk.Button(frame, text="参照", command=self._on_browse_macros, width=8).grid(
+            row=1, column=2, padx=5, pady=4
+        )
+        ttk.Button(frame, text="ツリー更新", command=self._build_tree, width=10).grid(
+            row=1, column=3, padx=5, pady=4
+        )
+
+    def _on_browse_tterm(self) -> None:
+        """Tera Term 実行ファイルを参照ダイアログで選択する。
+
+        キャンセル時（空文字が返る場合）は既存値を維持する。
+        """
+        path = filedialog.askopenfilename(filetypes=[("実行ファイル", "*.exe")])
+        if path:
+            self.tterm_path.set(path)
+
+    def _on_browse_macros(self) -> None:
+        """macros ルートディレクトリを参照ダイアログで選択する。
+
+        キャンセル時（空文字が返る場合）は既存値を維持する。
+        """
+        path = filedialog.askdirectory()
+        if path:
+            self.macros_dir.set(path)
+
+    def _build_search_frame(self) -> None:
+        """設定フレームとツリーの間に検索バーを構築する。
+
+        Entry の入力を即座にツリーに反映する（``<KeyRelease>`` で再構築）。
+        """
+        # 設定セクションと検索セクションの視覚的な境界線
+        ttk.Separator(self.root, orient="horizontal").pack(
+            fill=tk.X, padx=10, pady=(5, 5)
+        )
+
+        frame = ttk.Frame(self.root)
+        frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+
+        ttk.Label(frame, text="検索:").pack(side=tk.LEFT)
+        # ウィンドウ全幅まで伸ばさず固定幅。長い検索語が入る前提ではないため width=40
+        entry = ttk.Entry(frame, textvariable=self.search_query, width=40)
+        entry.pack(side=tk.LEFT, padx=5)
+        # 入力ごとに即時反映（pandas/重い処理ではないので debounce 不要）
+        entry.bind("<KeyRelease>", lambda _: self._build_tree())
+
+        ttk.Button(frame, text="✕クリア", command=self._on_clear_search, width=8).pack(
+            side=tk.LEFT
         )
 
     def _build_tree_frame(self) -> None:
-        """中央のツリービューフレームを構築する。"""
-        frame = tk.Frame(self.root)
+        """中央のツリービューフレームを構築する。
+
+        起動時には #0 / サーバ名 / IP / ユーザ名 が見切れずに表示されるよう
+        固定幅とし、パス列だけ stretch=True で残りの幅を吸収させる。
+        """
+        frame = ttk.Frame(self.root)
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        self.tree = ttk.Treeview(frame, columns=("path",), show="tree headings")
+        self.tree = ttk.Treeview(
+            frame,
+            columns=("server", "ip", "user", "path"),
+            show="tree headings",
+        )
         self.tree.heading("#0", text="マクロ構成")
-        self.tree.heading("path", text="TTLマクロ格納パス（相対）")
-        self.tree.column("#0", anchor="w", width=300)
-        self.tree.column("path", anchor="w", width=500)
+        self.tree.heading("server", text="サーバ名")
+        self.tree.heading("ip", text="IP / ホスト")
+        self.tree.heading("user", text="ユーザ名")
+        self.tree.heading("path", text="TTL パス（相対）")
+
+        self.tree.column("#0", anchor="w", width=200, stretch=False)
+        # サーバ名は日本語や長めの名前を考慮して広めに
+        self.tree.column("server", anchor="w", width=260, stretch=False)
+        self.tree.column("ip", anchor="w", width=140, stretch=False)
+        self.tree.column("user", anchor="w", width=100, stretch=False)
+        # パス列は残幅を吸収（起動時にはみ出して隠れる場合あり、仕様）
+        self.tree.column("path", anchor="w", width=400, stretch=True)
 
         self.tree.bind("<Double-1>", self._on_double_click)
         self.tree.bind("<Return>", self._on_double_click)
         self.tree.bind("<Button-3>", self._on_right_click)
 
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar = tk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
     def _build_bottom_frame(self) -> None:
-        """下部のアクションボタンフレームを構築する。"""
-        frame = tk.Frame(self.root)
+        """下部のアクションボタンフレームを構築する。
+
+        プライマリアクション（接続/編集/閉じる）は width=14 で広めに取り、
+        最重要の「接続」のみ ttkbootstrap の success スタイルでハイライト。
+        """
+        frame = ttk.Frame(self.root)
         frame.pack(pady=10)
 
-        actions: list[tuple[str, object]] = [
-            ("接続実行", self._on_double_click),
-            ("編集", self._on_edit_button),
-            ("閉じる", self.root.quit),
+        # (label, command, bootstyle) の3要素
+        actions: list[tuple[str, Callable[..., Any], str]] = [
+            ("接続", self._on_double_click, "success"),
+            ("編集", self._on_edit_button, "info"),
+            ("閉じる", self.root.quit, "secondary"),
         ]
-        for i, (label, cmd) in enumerate(actions):
-            tk.Button(frame, text=label, command=cmd).grid(row=0, column=i, padx=20)
+        for i, (label, cmd, style) in enumerate(actions):
+            ttk.Button(frame, text=label, command=cmd, width=14, bootstyle=style).grid(
+                row=0, column=i, padx=20
+            )
 
     def run(self) -> None:
         """Tk のメインループを開始する。"""
@@ -290,7 +429,8 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    root = tk.Tk()
+    # ttkbootstrap の Window はテーマ付きの tk.Tk サブクラス
+    root = ttk.Window(themename="darkly")
     app = LauncherApp(root)
     app.run()
 
