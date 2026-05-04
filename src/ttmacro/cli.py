@@ -22,7 +22,10 @@ def parse_args() -> argparse.Namespace:
     """コマンドライン引数を解析する。
 
     Returns:
-        ``--row`` を含む argparse.Namespace。
+        ``--row`` / ``--clean`` / ``--dry-run`` を含む argparse.Namespace。
+
+    Raises:
+        SystemExit: ``--dry-run`` が ``--clean`` なしで指定された場合。
     """
     parser = argparse.ArgumentParser(
         description=r"""
@@ -48,6 +51,12 @@ generate列が'yes'の行のみが処理対象となります。
   # 特定の行のみ生成（5行目）
   python .\generate_ttl_macros.py --row 5
 
+  # 既存 TTL を全削除してから生成（グループ変更時の孤児解消）
+  python .\generate_ttl_macros.py --clean
+
+  # 削除対象を確認するだけ（実削除も生成も行わない）
+  python .\generate_ttl_macros.py --clean --dry-run
+
   # ヘルプを表示
   python .\generate_ttl_macros.py --help
 
@@ -56,14 +65,37 @@ generate列が'yes'の行のみが処理対象となります。
   - generate列が'yes'の行のみが処理されます
   - 生成フラグに'e'を指定すると処理を終了します
   - PowerShellで実行する場合は 'python .\generate_ttl_macros.py' を使用してください
+  - --row と --clean は併用できません
         """,
     )
-    parser.add_argument(
+
+    # --row と --clean は排他（--row は単一行処理、--clean は全体クリーン+全行生成）
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--row",
         type=int,
         help="生成する行番号（1から始まる）。指定がない場合は全行を処理します。",
     )
-    return parser.parse_args()
+    group.add_argument(
+        "--clean",
+        action="store_true",
+        help="生成前に既存の TTL ファイルを全削除する（template.ttl 除く）。"
+        "グループ変更で残った旧 TTL を掃除する用途。",
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="--clean と組み合わせて、削除対象を表示するだけで実際の削除と生成は行わない。",
+    )
+
+    args = parser.parse_args()
+
+    # --dry-run は --clean とのみ併用可（単独使用は意味がない）
+    if args.dry_run and not args.clean:
+        parser.error("--dry-run は --clean とのみ併用できます")
+
+    return args
 
 
 def generate_ttl_macros(args: argparse.Namespace) -> None:
@@ -72,26 +104,59 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
     Excel 台帳の各行を ``generate=yes`` フィルタで処理し、
     テンプレートを展開して TTL ファイルを書き出す。``'e'`` を検出すると終了。
 
+    ``--clean`` 指定時は生成前に既存 TTL を一括削除する。``--dry-run`` を
+    併用すると削除対象を出力するだけで実削除・生成ともにスキップする。
+
     Args:
         args: ``parse_args()`` の戻り値。
     """
-    # pandas を引きずる excel_loader はここで遅延 import
-    # （--help を pandas 未導入環境でも動かすため）
-    try:
-        from ttmacro import excel_loader
-    except ImportError as e:
-        print(f"pandas のインポートに失敗しました: {e}", file=sys.stderr, flush=True)
-        print(
-            '仮想環境を有効にして、pip install -e ".[dev]" を実行してください。',
-            file=sys.stderr,
-            flush=True,
-        )
-        sys.exit(1)
-
     print("[1/4] ログ設定...", file=sys.stderr, flush=True)
     logger = setup_logging()
 
     try:
+        # クリーンアップフェーズ（--clean 指定時のみ）
+        if args.clean:
+            from ttmacro import cleaner
+            from ttmacro.config import OUTPUT_DIR
+
+            targets = cleaner.find_ttl_files_to_delete(OUTPUT_DIR)
+            existing_empty = cleaner.find_empty_subdirs(OUTPUT_DIR)
+            logger.info(
+                f"🧹 クリーン対象: TTL {len(targets)} 件、"
+                f"既存の空ディレクトリ {len(existing_empty)} 件"
+            )
+
+            if args.dry_run:
+                logger.info("🔍 [dry-run] 削除候補一覧:")
+                for t in targets:
+                    logger.info(f"  - {t.relative_to(OUTPUT_DIR)}")
+                logger.info(
+                    "🔍 [dry-run] 実削除と生成は行いません（--dry-run なしで実行してください）"
+                )
+                return
+
+            file_count = cleaner.delete_ttl_files(targets)
+            dir_count = cleaner.delete_empty_subdirs(OUTPUT_DIR)
+            logger.info(
+                f"🧹 クリーン完了: TTL {file_count} 件、"
+                f"空ディレクトリ {dir_count} 件を削除"
+            )
+
+        # pandas を引きずる excel_loader はここで遅延 import
+        # （--help と --clean --dry-run を pandas 未導入環境でも動かすため）
+        try:
+            from ttmacro import excel_loader
+        except ImportError as e:
+            print(
+                f"pandas のインポートに失敗しました: {e}", file=sys.stderr, flush=True
+            )
+            print(
+                '仮想環境を有効にして、pip install -e ".[dev]" を実行してください。',
+                file=sys.stderr,
+                flush=True,
+            )
+            sys.exit(1)
+
         print("[2/4] テンプレート・Excel 読み込み...", file=sys.stderr, flush=True)
         template = ttl_renderer.load_template()
         df = excel_loader.load_excel_data()
