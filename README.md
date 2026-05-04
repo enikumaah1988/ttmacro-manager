@@ -37,11 +37,23 @@ ttmacro-manager/
 ├── logs/
 │   ├── generate.log            # 生成スクリプトのログ（Git管理外）
 │   └── XXXXX.log               # ttl実行時のログ（Git管理外）
+├── src/
+│   └── ttmacro/                # 生成器の本体パッケージ
+│       ├── config.py           # パス定数
+│       ├── logger.py           # ログ設定
+│       ├── path_resolver.py    # 出力先・相対パス計算
+│       ├── ttl_renderer.py     # テンプレート展開
+│       ├── excel_loader.py     # Excel I/O・行検証
+│       └── cli.py              # CLI エントリポイント
+├── tests/                      # pytest テスト
+│   ├── test_path_resolver.py
+│   ├── test_ttl_renderer.py
+│   └── test_excel_loader.py
 ├── bin/
-│   ├── generate_ttl_macros.py  # TTLマクロ生成スクリプト
-│   ├── run_launcher.py         # TTLを選んで接続
+│   ├── generate_ttl_macros.py  # ttmacro.cli を呼ぶ薄いラッパ
+│   ├── run_launcher.py         # GUI ランチャー（LauncherApp）
 │   └── launcher_config.json    # ランチャーの設定ファイル（Git管理外）
-├── requirements.txt            # ライブラリ一覧
+├── pyproject.toml              # 依存・ツール設定（hatchling / ruff / pytest / mypy）
 ├── .gitignore
 └── README.md
 ```
@@ -60,7 +72,7 @@ ttmacro-manager/
 **初回のみ** — 仮想環境を作成してから有効化：
 
 ```powershell
-# 3.12 を指定して作成（複数バージョンがある場合は py -3.12 -m venv .venv）
+# Python 3.12 以上で作成（複数バージョンがある場合は py -3.12 -m venv .venv のように明示指定）
 python -m venv .venv
 .venv\Scripts\Activate
 ```
@@ -80,15 +92,22 @@ python -m venv .venv
 
 ---
 
-### 3. 必要なライブラリをインストール
+### 3. プロジェクトをインストール
+
+依存・開発ツール設定は [pyproject.toml](pyproject.toml) で一元管理されています。  
+プロジェクトを編集可能な形で `pip install` してください：
+
+```powershell
+# 開発ツール込み（ruff / pytest / mypy などが入る。通常はこちらを推奨）
+pip install -e ".[dev]"
+
+# 本番動作のみ（pandas / openpyxl のみ）
+pip install -e .
+```
 
 インストール時にエラーが発生した場合、Visual StudioのC++デスクトップ開発環境をセットアップする必要あり。  
 詳細は以下URLを参照。  
 [Visual Studio に C および C++ サポートをインストールする](https://learn.microsoft.com/ja-jp/cpp/build/vscpp-step-0-installation?view=msvc-170)
-
-```powershell
-pip install -r requirements.txt
-```
 
 ---
 
@@ -264,7 +283,7 @@ Tera Termのログ設定は以下の優先順位で適用されます：
      - 必要なライブラリがインストールされているか
    - 解決方法：
      - `.venv\Scripts\activate`を実行
-     - `pip install -r requirements.txt`を実行
+     - `pip install -e ".[dev]"` を実行
 
 6. **Excelファイルの読み込みエラー**
    - 確認事項：
