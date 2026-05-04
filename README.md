@@ -13,6 +13,11 @@ Tera Term用の `.ttl` マクロファイルを Excelベースで一括管理・
 - ファイル名は **論理名_IPアドレス_ユーザ名** で生成（例: `infra01_192.168.0.10_rocky.ttl`）
 - 生成ログは `logs/generate.log`、TTL実行時のログは `logs/` 直下に出力
 - Pythonスクリプトで **WindowsのTera Termと連携可能**
+- **用途別テンプレート**: Excelの `template` 列で行ごとに切り替え可能（空欄は `default.ttl`）
+- **--clean オプション**: グループ変更で残った旧 TTL を一括掃除（`--dry-run` で削除候補確認）
+- **環境変数によるパス上書き**: `TTMACRO_*` で BASE_DIR / EXCEL_PATH 等を個別に変更可能
+- **GUI ランチャー（ttkbootstrap ダークテーマ）**: 検索ボックス・ツリー表示・接続/編集ボタン
+- **PyInstaller による exe 配布**: Python 未導入環境でも単体 exe で動作
 - 接続後の自動コマンド実行機能（ポストコマンド）
 - メモ機能による接続情報の管理
 - 鍵認証とパスワード認証の両対応
@@ -30,7 +35,9 @@ ttmacro-manager/
 ├── keys/                       # 鍵ファイル格納ディレクトリ
 │   └── xxxx.key                # サーバ認証鍵（Git管理外）
 ├── macros/                     # .ttl 出力ディレクトリ（グループ別）（テンプレート以外はGit管理外）
-│   ├── template.ttl            # ttlマクロ生成用テンプレート
+│   ├── templates/
+│   │   ├── default.ttl         # デフォルトテンプレート（template列が空の行で使用）
+│   │   └── *.ttl               # 用途別テンプレート（任意）
 │   └── [group1]/               # グループ別ディレクトリ
 │       └── [group2]/
 │           └── [group3]/
@@ -38,22 +45,32 @@ ttmacro-manager/
 │   ├── generate.log            # 生成スクリプトのログ（Git管理外）
 │   └── XXXXX.log               # ttl実行時のログ（Git管理外）
 ├── src/
-│   └── ttmacro/                # 生成器の本体パッケージ
-│       ├── config.py           # パス定数
+│   └── ttmacro/                # 生成器・ランチャーの本体パッケージ
+│       ├── config.py           # パス定数（TTMACRO_* 環境変数で上書き可）
 │       ├── logger.py           # ログ設定
 │       ├── path_resolver.py    # 出力先・相対パス計算
 │       ├── ttl_renderer.py     # テンプレート展開
-│       ├── excel_loader.py     # Excel I/O・行検証
-│       └── cli.py              # CLI エントリポイント
-├── tests/                      # pytest テスト
+│       ├── excel_loader.py     # Excel I/O・行検証（openpyxl 直叩き）
+│       ├── cleaner.py          # --clean 時の旧 TTL 削除
+│       ├── cli.py              # ttmacro-generate のエントリ
+│       └── launcher.py         # ttmacro-launcher のエントリ（GUI）
+├── tests/                      # pytest テスト（100 件）
+│   ├── test_cleaner.py
+│   ├── test_config.py
+│   ├── test_excel_loader.py
 │   ├── test_path_resolver.py
-│   ├── test_ttl_renderer.py
-│   └── test_excel_loader.py
+│   └── test_ttl_renderer.py
+├── packaging/                  # PyInstaller 用資材
+│   ├── entry_generate.py       # CLI 用エントリスクリプト
+│   ├── entry_launcher.py       # GUI 用エントリスクリプト
+│   ├── ttmacro-generate.spec   # CLI 用 .spec
+│   ├── ttmacro-launcher.spec   # GUI 用 .spec
+│   └── launcher.ico            # exe・ウィンドウ用アイコン
 ├── bin/
-│   ├── generate_ttl_macros.py  # ttmacro.cli を呼ぶ薄いラッパ
-│   ├── run_launcher.py         # GUI ランチャー（LauncherApp）
+│   ├── ttmacro-generate.exe    # PyInstaller 成果物（任意。Git管理外）
+│   ├── ttmacro-launcher.exe    # PyInstaller 成果物（任意。Git管理外）
 │   └── launcher_config.json    # ランチャーの設定ファイル（Git管理外）
-├── pyproject.toml              # 依存・ツール設定（hatchling / ruff / pytest / mypy）
+├── pyproject.toml              # 依存・ツール設定（hatchling / ruff / pytest / mypy / pyinstaller）
 ├── .gitignore
 └── README.md
 ```
@@ -98,12 +115,14 @@ python -m venv .venv
 プロジェクトを編集可能な形で `pip install` してください：
 
 ```powershell
-# 開発ツール込み（ruff / pytest / mypy などが入る。通常はこちらを推奨）
+# 開発ツール込み（ruff / pytest / mypy / pyinstaller などが入る。通常はこちらを推奨）
 pip install -e ".[dev]"
 
-# 本番動作のみ（pandas / openpyxl のみ）
+# 本番動作のみ（openpyxl / ttkbootstrap のみ）
 pip install -e .
 ```
+
+インストール後、`ttmacro-generate` と `ttmacro-launcher` の 2 つのコマンドが PATH に追加されます。
 
 インストール時にエラーが発生した場合、Visual StudioのC++デスクトップ開発環境をセットアップする必要あり。  
 詳細は以下URLを参照。  
@@ -177,15 +196,27 @@ copy data\servers_template.xlsx data\servers.xlsx
 ### 5. TTLマクロを生成
 
 ```powershell
-python bin/generate_ttl_macros.py
+# 全行を生成（generate=yes の行のみ対象）
+ttmacro-generate
+
+# 特定の No. のみ生成（generate 列の値に関係なく対象行を処理）
+ttmacro-generate --row 5
+
+# 既存 TTL を全削除してから生成（グループ変更で残った旧 TTL の掃除）
+ttmacro-generate --clean
+
+# 削除対象を確認するだけ（実削除も生成もしない）
+ttmacro-generate --clean --dry-run
 ```
+
+`template` 列に値を入れた行は `macros/templates/<その値>.ttl` を、空欄の行は `default.ttl` を使って生成されます。
 
 ---
 
 ### 6. TTLを選んで起動
 
 ```powershell
-python bin/run_launcher.py
+ttmacro-launcher
 ```
 
 #### ランチャーの設定（`launcher_config.json`）※自動生成
@@ -277,13 +308,15 @@ Tera Termのログ設定は以下の優先順位で適用されます：
      - TTLファイルを正しいディレクトリに移動
      - Excelファイルのグループ設定を確認
 
-5. **Pythonの実行エラー**
+5. **Pythonの実行エラー / コマンドが見つからない**
    - 確認事項：
      - 仮想環境（.venv）が有効になっているか
      - 必要なライブラリがインストールされているか
+     - `ttmacro-generate` / `ttmacro-launcher` コマンドが PATH に通っているか
    - 解決方法：
      - `.venv\Scripts\activate`を実行
-     - `pip install -e ".[dev]"` を実行
+     - `pip install -e ".[dev]"` を実行（インストール時に console scripts が登録される）
+     - 仮想環境を Activate しない場合は `.venv\Scripts\ttmacro-generate` のように直接呼ぶ
 
 6. **Excelファイルの読み込みエラー**
    - 確認事項：
@@ -317,19 +350,25 @@ Tera Termのログ設定は以下の優先順位で適用されます：
 
 ---
 
+## exe 配布版のビルド（Python 不要環境向け）
+
+PyInstaller で `bin/*.exe` を生成して、Python が入っていない端末にも配布できます。
+
+```powershell
+# GUI ランチャー
+.venv\Scripts\pyinstaller --clean --distpath bin packaging/ttmacro-launcher.spec
+
+# TTL 生成 CLI
+.venv\Scripts\pyinstaller --clean --distpath bin packaging/ttmacro-generate.spec
+```
+
+成果物は `bin/ttmacro-launcher.exe`（約 20 MB）と `bin/ttmacro-generate.exe`（約 16 MB）。配布時は `bin/`、`data/`、`macros/templates/`、必要なら `keys/` と空の `logs/` を含むフォルダごと渡してください。exe は `<deploy_root>/bin/` 配下に置く前提で、データファイルを相対参照します。
+
+---
+
 ## 今後の展望
 
-- exeファイル化し、python不要での実行
-- コメントや用途別テンプレートの自動適用
-- グループ変更時の旧ファイル削除機能
-- パスワード暗号化
-- 複数template.ttlの活用
-- マクロのバージョン管理  
-　- 変更履歴の追跡  
-　- 以前のバージョンへの戻し  
-- UI/UXの改善
-- パス管理のさらなる改善
-  - 環境変数によるパス設定
-  - カスタムパス設定のサポート
-  - パス解決のキャッシュ機能
+- パスワード暗号化（Tera Term の `/passwd=` が平文要求のため、根本的には鍵認証推奨）
+- マクロのバージョン管理（変更履歴の追跡 / 以前のバージョンへの戻し）
+- UI/UXのさらなる改善
 
