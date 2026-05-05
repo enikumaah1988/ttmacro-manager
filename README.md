@@ -3,25 +3,20 @@
 Tera Term用の `.ttl` マクロファイルを Excelベースで一括管理・生成・起動できる環境を提供するツールです。  
 複数拠点・複数アカウントの接続管理を効率化します。
 
+最新リリース: [Releases](https://github.com/enikumaah1988/ttmacro-manager/releases) — Python 不要の exe 配布版（zip）はリリースページから入手できます。
+
 ---
 
 ## 特長
 
-- 接続情報を **Excelファイル（.xlsx）で管理**
-- `generate=yes` の行だけ `.ttl` マクロを自動生成
-- グループ別ディレクトリに `.ttl` を出力（`macros/home/` など）
-- ファイル名は **論理名_IPアドレス_ユーザ名** で生成（例: `infra01_192.168.0.10_rocky.ttl`）
-- 生成ログは `logs/generate.log`、TTL実行時のログは `logs/` 直下に出力
-- Windows の Tera Term（`ttermpro.exe`）を `/M=<ttl>` 引数で起動
-- **用途別テンプレート**: Excelの `template` 列で行ごとに切り替え可能（空欄は `default.ttl`）
-- **--clean オプション**: グループ変更で残った旧 TTL を一括掃除（`--dry-run` で削除候補確認）
-- **環境変数によるパス上書き**: `TTMACRO_*` で BASE_DIR / EXCEL_PATH 等を個別に変更可能
-- **GUI ランチャー（ダークテーマ）**: 検索ボックス・ツリー表示・接続/編集ボタン
-- **exe 形式の配布に対応**: Python 未導入環境でも単体 exe で動作
-- 接続後の自動コマンド実行機能（ポストコマンド）
-- メモ機能による接続情報の管理
-- 鍵認証とパスワード認証の両対応
-- **柔軟なパス管理**：TTLファイルの配置場所に関係なく、正しいパスでリソースにアクセス
+- **Excel ベースで一括管理**: 接続情報を `.xlsx` 1 ファイルで保守。グループ階層別に `.ttl` を自動生成（ファイル名は `論理名_IP_ユーザ名.ttl`）
+- **用途別テンプレート**: Excel の `template` 列で行ごとに `macros/templates/<name>.ttl` を切り替え。空欄なら `default.ttl`
+- **GUI ランチャー（ダークテーマ）**: 検索ボックス・サーバ名 / IP / ユーザ名のツリー表示・接続 / 編集ボタン
+- **接続後の自動コマンド実行 + メモ機能**: 接続直後に `post_cmd` を sendln で投入、`memo` は TTL ヘッダにコメントとして残る
+- **鍵認証 / パスワード認証 両対応**
+- **exe 形式の配布に対応**: Python 未導入環境でも単体配布可能（[Releases](https://github.com/enikumaah1988/ttmacro-manager/releases)）
+- **環境変数によるパス上書き**: `TTMACRO_*` で BASE_DIR / EXCEL_PATH 等を個別変更可能
+- **`--clean` オプション**: グループ変更で残った旧 TTL を一括掃除（`--dry-run` で削除候補確認）
 
 ---
 
@@ -82,12 +77,21 @@ ttmacro-manager/
 
 ## セットアップ手順（Windows）
 
+> exe 配布版を使うだけの方は、[Releases](https://github.com/enikumaah1988/ttmacro-manager/releases) から zip を取得して解凍するだけで動きます。以下はソースから動かす開発者向け手順です。
+
 ### 1. Pythonをインストール（初回のみ）
 
 [公式サイト](https://www.python.org/downloads/windows/)から最新版をインストール  
 ※ インストール時に「**Add Python to PATH**」にチェックを忘れずに！
 
-### 2. 仮想環境（.venv）の利用
+### 2. リポジトリを取得（初回のみ）
+
+```powershell
+git clone https://github.com/enikumaah1988/ttmacro-manager.git
+cd ttmacro-manager
+```
+
+### 3. 仮想環境（.venv）の利用
 
 **初回のみ** — 仮想環境を作成してから有効化：
 
@@ -112,7 +116,7 @@ python -m venv .venv
 
 ---
 
-### 3. プロジェクトをインストール
+### 4. プロジェクトをインストール
 
 プロジェクトを編集可能な形で `pip install` してください：
 
@@ -130,7 +134,7 @@ Activate していない場合は `.venv\Scripts\ttmacro-generate.exe` のよう
 
 ---
 
-### 4. Excel台帳ファイルの準備
+### 5. Excel台帳ファイルの準備
 
 以下のようなExcelファイルを `data/servers.xlsx` として用意します。  
 `servers_template.xlsx` をコピーして編集してください：
@@ -158,44 +162,9 @@ copy data\servers_template.xlsx data\servers.xlsx
 - `template` は使用するテンプレート名（拡張子省略可）。空欄なら `default.ttl`、`nodejs` と書けば `macros/templates/nodejs.ttl` を使う。
 - `memo` は接続情報のメモを記載します。TTLファイルのヘッダーに表示されます。
 
-#### ログファイルのフォーマット
-
-- `generate.log`: TTLマクロ生成時のログ
-  - 生成日時
-  - 生成されたTTLファイル名
-  - エラー情報（発生時）
-
-  ```text
-  2024-03-15 14:30:22 - 生成開始
-  2024-03-15 14:30:22 - ✅ infra01_192.168.0.10_rocky.ttl を生成しました。
-  2024-03-15 14:30:22 - ✅ infra02_192.168.0.11_rocky.ttl を生成しました。
-  2024-03-15 14:30:22 - ✅ dev01_192.168.0.12_dev.ttl を生成しました。
-  2024-03-15 14:30:22 - ⏹️ 'e' を検出したため、処理を終了します。
-  ```
-
-- `XXXXX.log`: TTLマクロ実行時のログ（`logs/` 直下に出力）
-  - ファイル名フォーマット: `{論理名}_{IP}_{ユーザ名}_{YYYYMMDD_HHMMSS}.log`
-  - 例: `logs/infra01_192.168.0.10_rocky_20240315_143022.log`
-  - 接続情報
-  - 実行されたコマンド
-  - コマンドの出力結果
-
-  - ログ出力サンプル
-
-  ```text
-  [2024-03-15 14:30:22.123] [rocky@infra01 ~]$ date '+%Y/%m/%d %H:%M:%S'
-  2024/03/15 14:30:23
-  [2024-03-15 14:30:23.456] [rocky@infra01 ~]$ whoami
-  rocky
-  [2024-03-15 14:30:23.789] [rocky@infra01 ~]$ uname -a
-  Linux infra01 5.15.0-91-generic #101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
-  [2024-03-15 14:30:23.890] [rocky@infra01 ~]$ date
-  Fri Mar 15 14:30:23 JST 2024
-  ```
-
 ---
 
-### 5. TTLマクロを生成
+### 6. TTLマクロを生成
 
 ```powershell
 # 全行を生成（generate=yes の行のみ対象）
@@ -215,29 +184,50 @@ ttmacro-generate --clean --dry-run
 
 ---
 
-### 6. TTLを選んで起動
+### 7. TTLを選んで起動
 
 ```powershell
 ttmacro-launcher
 ```
 
-#### ランチャーの設定（`launcher_config.json`）※自動生成
+ランチャーの初回起動後、画面上の「参照」ボタンで Tera Term の実行ファイルパスと macros ルートを指定し「設定保存」を押すと `bin/launcher_config.json` に自動保存されます（手書きで作成する必要はありません）。
 
-```json
-{
-    "teraterm_path": "C:\\Program Files\\teraterm\\ttermpro.exe",
-    "macros_root": "C:\\path\\to\\ttmacro-manager\\macros"
-}
-```
-
-- `teraterm_path`: Tera Termの実行ファイルのパス
-- `macros_root`: TTLマクロファイルのルートディレクトリのパス
+---
 
 ## 🖼 GUIランチャー画面イメージ
 
 ![Tera Term GUIランチャー](images/launcher_gui.png)
 
 ダークテーマで、検索ボックス・サーバ名 / IP / ユーザ名の 3 列表示・接続 / 編集 / 閉じるボタンを備える。
+
+---
+
+## ログファイルのフォーマット
+
+### `logs/generate.log` — TTL 生成時のログ
+
+```text
+2024-03-15 14:30:22 - 生成開始
+2024-03-15 14:30:22 - ✅ infra01_192.168.0.10_rocky.ttl を生成しました。
+2024-03-15 14:30:22 - ✅ infra02_192.168.0.11_rocky.ttl を生成しました。
+2024-03-15 14:30:22 - ✅ dev01_192.168.0.12_dev.ttl を生成しました。
+2024-03-15 14:30:22 - ⏹️ 'e' を検出したため、処理を終了します。
+```
+
+### `logs/{論理名}_{IP}_{ユーザ名}_{YYYYMMDD_HHMMSS}.log` — TTL 実行時のログ
+
+例: `logs/infra01_192.168.0.10_rocky_20240315_143022.log`
+
+```text
+[2024-03-15 14:30:22.123] [rocky@infra01 ~]$ date '+%Y/%m/%d %H:%M:%S'
+2024/03/15 14:30:23
+[2024-03-15 14:30:23.456] [rocky@infra01 ~]$ whoami
+rocky
+[2024-03-15 14:30:23.789] [rocky@infra01 ~]$ uname -a
+Linux infra01 5.15.0-91-generic #101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+```
+
+---
 
 ## TTL ファイル運用上の注意
 
@@ -307,25 +297,8 @@ Tera Term の `teraterm.ini` にログ設定が記述されていると、TTL �
 
 ## セキュリティに関する注意事項
 
-1. **パスワード管理**
-   - Excelファイル（`servers.xlsx`）に平文でパスワードを保存しない
-   - 可能な限り鍵認証を使用
-   - パスワードを使用する場合は、ファイルのアクセス権限を適切に設定
-
-2. **鍵ファイルの管理**
-   - `keys/`ディレクトリのアクセス権限を適切に設定
-   - 秘密鍵のパーミッションを適切に設定（Windowsの場合：所有者のみアクセス可能）
-   - 鍵ファイルをGitで管理しない（`.gitignore`に設定済み）
-
-3. **ログファイルの管理**
-   - ログファイルには機密情報が含まれる可能性がある
-   - 定期的なログローテーションを検討
-   - 不要なログファイルは適切に削除
-
-4. **TTLファイルの管理**
-   - 生成されたTTLファイルには接続情報が含まれる
-   - 不要なTTLファイルは適切に削除
-   - ファイルのアクセス権限を適切に設定
+- **パスワードを Excel に平文で書かない**: 可能な限り鍵認証（`keyfile` 列）を使う。やむを得ず `password` 列を使う場合は `servers.xlsx` のアクセス権を絞る
+- **生成物は接続情報を含む**: `keys/` `macros/**/*.ttl` `logs/*.log` には接続先・パスワード・実行履歴が残るため、git にはコミットせず（既に `.gitignore` 済み）、共有ストレージや配布物に含めないよう注意
 
 ---
 
@@ -363,11 +336,3 @@ GUI ランチャーは `--onedir` モードでビルドしているため、単�
 ```
 
 exe は `<deploy_root>/bin/` 配下に置く前提で、`data/` `macros/` 等を相対参照します。`bin/` 単体で別フォルダに移動すると動かないので注意してください。
-
----
-
-## 今後の展望
-
-- パスワード暗号化（Tera Term の `/passwd=` が平文要求のため、根本的には鍵認証推奨）
-- マクロのバージョン管理（変更履歴の追跡 / 以前のバージョンへの戻し）
-- UI/UXのさらなる改善
