@@ -29,7 +29,9 @@ $null = New-Item -ItemType Directory -Path `
     "$Deploy\bin", "$Deploy\data", "$Deploy\macros\templates", `
     "$Deploy\keys", "$Deploy\logs"
 
-Copy-Item bin\ttmacro-launcher.exe "$Deploy\bin\"
+# ランチャーは --onedir なのでフォルダごとコピー（依存ファイル多数を同梱）
+Copy-Item -Recurse bin\ttmacro-launcher "$Deploy\bin\ttmacro-launcher"
+# CLI は --onefile なので exe 単体
 Copy-Item bin\ttmacro-generate.exe "$Deploy\bin\"
 Copy-Item data\servers_template.xlsx "$Deploy\data\"
 Copy-Item macros\templates\*.ttl "$Deploy\macros\templates\"

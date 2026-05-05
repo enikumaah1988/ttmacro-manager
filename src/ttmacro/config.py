@@ -45,17 +45,21 @@ def _env_path(env_name: str, default: Path) -> Path:
 def _resolve_default_base_dir() -> Path:
     """デフォルトの BASE_DIR を実行モード別に解決する。
 
-    開発実行（python -m / pip install -e .）では本ファイルから
+    開発実行（``python -m`` / ``pip install -e .``）では本ファイルから
     プロジェクトルートまで 3 階層上った場所を返す。
 
-    PyInstaller で凍結された実行ファイルでは ``sys.executable`` が
-    ``<deploy_root>/bin/<exe>`` を指すため、その親の親をデプロイルート
-    として返す（同梱の data/macros/keys/logs を相対参照するため）。
+    PyInstaller で凍結された実行ファイルでは ``sys.executable`` から
+    上に向かって ``bin/`` ディレクトリを探し、その親をデプロイルート
+    とする。これにより ``--onefile``（``bin/<exe>``）と ``--onedir``
+    （``bin/<dir>/<exe>``）の両方に対応する。
     """
     if getattr(sys, "frozen", False):
-        # PyInstaller --onefile：sys.executable は bin/<exe>。
-        # その親（bin/）の親 = デプロイルート。
-        return Path(sys.executable).resolve().parent.parent
+        exe_path = Path(sys.executable).resolve()
+        for parent in exe_path.parents:
+            if parent.name == "bin":
+                return parent.parent
+        # フォールバック：bin が見つからなければ直近 2 階層上
+        return exe_path.parent.parent
     # 開発実行：src/ttmacro/config.py から 3 階層上る
     return Path(__file__).resolve().parent.parent.parent
 

@@ -52,6 +52,8 @@ keys/*
 build/
 dist/
 *.spec.bak
+# --onedir ランチャー成果物（bin/ttmacro-launcher/ フォルダ一式）
+bin/ttmacro-launcher/
 
 # build.ps1 の成果物
 deploy/
