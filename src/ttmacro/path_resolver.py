@@ -6,10 +6,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
-from ttmacro.config import BASE_DIR, KEYS_DIR, LOGS_DIR, OUTPUT_DIR
+from ttmacro.config import BASE_DIR, LOGS_DIR, OUTPUT_DIR
 
 
 def get_target_directory(data: dict[str, str]) -> Path:
@@ -84,33 +83,3 @@ def get_log_dir(target_dir: Path) -> Path:
     if rel == Path("."):
         return LOGS_DIR
     return LOGS_DIR / rel
-
-
-def calculate_paths(data: dict[str, str], target_dir: Path) -> dict[str, str]:
-    """各種パスを計算する（現状は呼び出し元で結果が利用されていない）。
-
-    既存仕様維持のため残置。リファクタ完了後の整理対象。
-
-    Args:
-        data: 行データ辞書。
-        target_dir: 出力先ディレクトリ。
-
-    Returns:
-        ttl_name / log_file / log_path / keyfile を含む辞書。
-    """
-    ttl_name = f"{data['name']}_{data['host']}_{data['user']}"
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"{ttl_name}_{timestamp}.log"
-    log_file = LOGS_DIR / log_filename
-
-    keyfile_path = ""
-    if data["keyfile_name"]:
-        keyfile_path = str(KEYS_DIR / data["keyfile_name"])
-
-    return {
-        "ttl_name": ttl_name,
-        "log_file": str(log_file),
-        "log_path": str(LOGS_DIR),
-        "keyfile": keyfile_path,
-    }
