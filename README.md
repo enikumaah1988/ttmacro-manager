@@ -67,9 +67,11 @@ ttmacro-manager/
 │   ├── ttmacro-launcher.spec   # GUI 用 .spec
 │   └── launcher.ico            # exe・ウィンドウ用アイコン
 ├── bin/
-│   ├── ttmacro-generate.exe    # PyInstaller 成果物（任意。Git管理外）
-│   ├── ttmacro-launcher.exe    # PyInstaller 成果物（任意。Git管理外）
-│   └── launcher_config.json    # ランチャーの設定ファイル（Git管理外）
+│   ├── ttmacro-generate.exe          # CLI（PyInstaller --onefile 成果物。Git管理外）
+│   ├── ttmacro-launcher/             # GUI（PyInstaller --onedir 成果物のフォルダ。Git管理外）
+│   │   ├── ttmacro-launcher.exe      #   実行ファイル本体
+│   │   └── _internal/                #   依存ファイル一式
+│   └── launcher_config.json          # ランチャーの設定ファイル（Git管理外）
 ├── build.ps1                   # exe ビルド + zip 化を自動化するスクリプト
 ├── pyproject.toml              # 依存・ツール設定
 ├── .gitignore
@@ -341,12 +343,14 @@ PyInstaller で `bin/*.exe` を生成して、Python が入っていない端末
 
 成果物:
 
-- `bin/ttmacro-launcher.exe`（約 20 MB）
-- `bin/ttmacro-generate.exe`（約 16 MB）
+- `bin/ttmacro-launcher/`（GUI、フォルダ約 45 MB。中の `ttmacro-launcher.exe` を起動）
+- `bin/ttmacro-generate.exe`（CLI、約 16 MB）
 - `deploy/`（配布用フォルダ。`bin/` `data/` `macros/templates/` `keys/` `logs/` を含む）
 - `ttmacro-manager-v<version>.zip`（`deploy/` を圧縮したもの。配布相手に渡す）
 
-配布相手は zip を解凍 → `data/servers_template.xlsx` を `servers.xlsx` にリネーム + 編集 → `bin/ttmacro-launcher.exe` を起動、で使い始められます。
+GUI ランチャーは `--onedir` モードでビルドしているため、単一 exe ではなくフォルダ単位の配布になります（起動時のファイル展開を省くため、起動が `--onefile` の 3 倍以上速い）。
+
+配布相手は zip を解凍 → `data/servers_template.xlsx` を `servers.xlsx` にリネーム + 編集 → `bin/ttmacro-launcher/ttmacro-launcher.exe` を起動、で使い始められます。
 
 ### 個別にビルドしたい場合
 
