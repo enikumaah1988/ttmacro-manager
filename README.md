@@ -16,8 +16,8 @@ Tera Term用の `.ttl` マクロファイルを Excelベースで一括管理・
 - **用途別テンプレート**: Excelの `template` 列で行ごとに切り替え可能（空欄は `default.ttl`）
 - **--clean オプション**: グループ変更で残った旧 TTL を一括掃除（`--dry-run` で削除候補確認）
 - **環境変数によるパス上書き**: `TTMACRO_*` で BASE_DIR / EXCEL_PATH 等を個別に変更可能
-- **GUI ランチャー（ttkbootstrap ダークテーマ）**: 検索ボックス・ツリー表示・接続/編集ボタン
-- **PyInstaller による exe 配布**: Python 未導入環境でも単体 exe で動作
+- **GUI ランチャー（ダークテーマ）**: 検索ボックス・ツリー表示・接続/編集ボタン
+- **exe 形式の配布に対応**: Python 未導入環境でも単体 exe で動作
 - 接続後の自動コマンド実行機能（ポストコマンド）
 - メモ機能による接続情報の管理
 - 鍵認証とパスワード認証の両対応
@@ -50,11 +50,11 @@ ttmacro-manager/
 │       ├── logger.py           # ログ設定
 │       ├── path_resolver.py    # 出力先・相対パス計算
 │       ├── ttl_renderer.py     # テンプレート展開
-│       ├── excel_loader.py     # Excel I/O・行検証（openpyxl 直叩き）
+│       ├── excel_loader.py     # Excel I/O・行検証
 │       ├── cleaner.py          # --clean 時の旧 TTL 削除
 │       ├── cli.py              # ttmacro-generate のエントリ
 │       └── launcher.py         # ttmacro-launcher のエントリ（GUI）
-├── tests/                      # pytest テスト（100 件）
+├── tests/                      # 単体テスト
 │   ├── test_cleaner.py
 │   ├── test_config.py
 │   ├── test_excel_loader.py
@@ -71,7 +71,7 @@ ttmacro-manager/
 │   ├── ttmacro-launcher.exe    # PyInstaller 成果物（任意。Git管理外）
 │   └── launcher_config.json    # ランチャーの設定ファイル（Git管理外）
 ├── build.ps1                   # exe ビルド + zip 化を自動化するスクリプト
-├── pyproject.toml              # 依存・ツール設定（hatchling / ruff / pytest / mypy / pyinstaller）
+├── pyproject.toml              # 依存・ツール設定
 ├── .gitignore
 └── README.md
 ```
@@ -112,22 +112,19 @@ python -m venv .venv
 
 ### 3. プロジェクトをインストール
 
-依存・開発ツール設定は [pyproject.toml](pyproject.toml) で一元管理されています。  
 プロジェクトを編集可能な形で `pip install` してください：
 
 ```powershell
-# 開発ツール込み（ruff / pytest / mypy / pyinstaller などが入る。通常はこちらを推奨）
+# 通常はこちら（開発ツール込み）
 pip install -e ".[dev]"
 
-# 本番動作のみ（openpyxl / ttkbootstrap のみ）
+# 動作だけ確認したい場合
 pip install -e .
 ```
 
 インストール後、仮想環境（`.venv`）を Activate した状態であれば、`ttmacro-generate` と `ttmacro-launcher` の 2 つをコマンドとして直接実行できます。（実体は `.venv\Scripts\` 配下に作られる shim exe です。Activate すると同フォルダがシェルの検索パス先頭に入るためコマンド名だけで起動できます。）
 
 Activate していない場合は `.venv\Scripts\ttmacro-generate.exe` のように直接フルパスで呼ぶこともできます。
-
-依存ライブラリ（openpyxl / ttkbootstrap / pyinstaller など）はすべて純 Python 実装なので、Visual Studio などのビルドツールは不要です。
 
 ---
 
@@ -238,42 +235,17 @@ ttmacro-launcher
 
 ![Tera Term GUIランチャー](images/launcher_gui.png)
 
-ttkbootstrap の `darkly` テーマでダークモード化され、検索ボックス・サーバ名/IP/ユーザ名の 3 列表示・接続/編集/閉じるボタンを備える。
+ダークテーマで、検索ボックス・サーバ名 / IP / ユーザ名の 3 列表示・接続 / 編集 / 閉じるボタンを備える。
 
-## ttlマクロのパス管理の仕組み
+## TTL ファイル運用上の注意
 
-### パス計算の仕組み
+### 生成済み TTL を別の階層に移動しないでください
 
-ttlマクロのパス管理は、TTLファイルとPythonの両方のコンポーネントで実装されています：
+TTL ファイルは生成時に **配置場所からプロジェクトルートまでの相対パス** を内部に埋め込んで保存します。これによりログ・鍵ファイルが正しく解決されます。生成後に `.ttl` を別フォルダへ手動で移動するとパス解決が壊れます。グループ階層を変えたいときは、Excel の `group1` 〜 `group3` 列を変更して `ttmacro-generate --clean` で再生成してください。
 
-1. **TTLファイル側の処理**
-   - `getdir`コマンドで現在のTTLファイルのディレクトリを取得
-   - 相対パス（`rel_path`）を使用してプロジェクトルートを特定
-   - ログファイル名は`{論理名}_{IP}_{ユーザ名}_{%Y%m%d_%H%M%S}.log`の形式で生成
+### Tera Term のログ設定について
 
-2. **Python側の処理**
-   - プロジェクトルートからの相対パスを計算
-   - ログの保存先を `logs/` ディレクトリ直下に設定
-   - 鍵ファイルの保存先を`keys/`ディレクトリに設定
-
-### ログ設定の優先順位
-
-Tera Termのログ設定は以下の優先順位で適用されます：
-
-1. **INIファイルの設定**（最優先）
-   - ユーザーのTera Term設定ファイル（`teraterm.ini`）の設定が最優先
-   - ログの保存場所やファイル名のフォーマットは、INIファイルの設定が使用される
-   - これにより、ユーザーごとの好みの設定を尊重
-
-2. **TTLマクロの設定**
-   - TTLファイル内の`logopen`コマンドの設定は、INIファイルの設定に上書きされる
-   - ただし、INIファイルでログ設定が指定されている場合は、そちらが優先される
-
-この仕組みにより：
-
-- ユーザーは各自の環境に合わせてログ設定をカスタマイズ可能
-- プロジェクト全体での一貫したログ管理が可能
-- セキュリティを考慮したログファイルの配置が実現
+Tera Term の `teraterm.ini` にログ設定が記述されていると、TTL マクロ内の `logopen` 指定よりも **INI 側の設定が優先** されます。プロジェクト側で指定した `logs/` 配下にログを残したい場合は、`teraterm.ini` のログ関連項目を空欄にしておく必要があります。
 
 ---
 
