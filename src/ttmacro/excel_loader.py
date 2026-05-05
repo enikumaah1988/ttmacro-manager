@@ -9,12 +9,33 @@ from __future__ import annotations
 import ipaddress
 import math
 import re
-from typing import Any
+from typing import Any, TypedDict
 
 from openpyxl import load_workbook
 
 from ttmacro.config import EXCEL_PATH, KEYS_DIR
 from ttmacro.ttl_renderer import sanitize_name
+
+
+class RowData(TypedDict):
+    """``extract_row_data`` の戻り値型。
+
+    Excel 1 行から TTL 生成に必要な情報をすべて含む。値はすべて
+    文字列に正規化済み（空セルは空文字、空ポートは ``"22"`` がデフォルト）。
+    """
+
+    name: str
+    host: str
+    port: str
+    user: str
+    password: str
+    keyfile_name: str
+    post_cmd: str
+    memo: str
+    group1: str
+    group2: str
+    group3: str
+    template: str
 
 
 def is_blank(value: Any) -> bool:
@@ -180,15 +201,14 @@ def validate_row_data(row: dict[str, Any], row_num: int) -> tuple[bool, list[str
     return len(errors) == 0, errors
 
 
-def extract_row_data(row: dict[str, Any]) -> dict[str, str]:
+def extract_row_data(row: dict[str, Any]) -> RowData:
     """行データから TTL 生成に必要な情報を抽出する。
 
     Args:
         row: 抽出元の行（dict）。
 
     Returns:
-        name/host/port/user/password/keyfile_name/post_cmd/memo/group1-3/template
-        を含む辞書。
+        ``RowData`` TypedDict（全フィールド正規化済み文字列）。
     """
     # メモ内の改行・タブは半角空白に置換（TTL コメントが壊れないように）
     memo = (

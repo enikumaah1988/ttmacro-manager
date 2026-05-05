@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ttmacro.config import TEMPLATE_PATH, TEMPLATES_DIR
 from ttmacro.path_resolver import calculate_relative_path
+
+if TYPE_CHECKING:
+    from ttmacro.excel_loader import RowData
 
 
 def sanitize_name(name: str) -> str:
@@ -99,7 +103,7 @@ def load_template(path: Path | None = None) -> str:
 
 
 def generate_ttl_content(
-    data: dict[str, str], template: str, timestamp: str, target_dir: Path
+    data: RowData, template: str, timestamp: str, target_dir: Path
 ) -> str:
     """TTL マクロ本文を生成する。
 

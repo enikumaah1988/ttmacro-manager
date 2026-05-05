@@ -7,11 +7,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ttmacro.config import BASE_DIR, LOGS_DIR, OUTPUT_DIR
 
+if TYPE_CHECKING:
+    from ttmacro.excel_loader import RowData
 
-def get_target_directory(data: dict[str, str]) -> Path:
+
+def get_target_directory(data: RowData) -> Path:
     """グループ階層に基づいて出力ディレクトリを決定する。
 
     副作用として、ディレクトリ作成と書き込み権限テストを行う。
