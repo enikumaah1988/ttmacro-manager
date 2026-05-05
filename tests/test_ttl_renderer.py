@@ -117,6 +117,46 @@ class TestGenerateTtlContent:
         # 空行が混じっていても sendln は 2 つだけ
         assert result.count("sendln") == 2
 
+    def test_password_containing_placeholder_is_not_re_expanded(
+        self, base_data: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """password の値に ``{memo}`` が含まれていても再展開されない（単一パス置換）。"""
+        monkeypatch.setattr("ttmacro.path_resolver.BASE_DIR", tmp_path)
+        base_data["password"] = "abc{memo}def"
+        base_data["memo"] = "LEAKED"
+
+        result = generate_ttl_content(
+            base_data, "pw={password}\nmemo={memo}", "ts", tmp_path
+        )
+        # password の中の ``{memo}`` は文字列として残り、memo の値で置換されない
+        assert "pw=abc{memo}def" in result
+        assert "memo=LEAKED" in result
+        assert "abcLEAKEDdef" not in result
+
+    def test_memo_containing_placeholder_kept_as_literal(
+        self, base_data: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """memo の値に ``{password}`` 文字列が含まれていても展開されず文字列として残る。"""
+        monkeypatch.setattr("ttmacro.path_resolver.BASE_DIR", tmp_path)
+        base_data["password"] = "secret"
+        base_data["memo"] = "see {password} field"
+
+        result = generate_ttl_content(
+            base_data, "pw={password}\nmemo={memo}", "ts", tmp_path
+        )
+        assert "pw=secret" in result
+        # memo に書いた ``{password}`` は文字列として残る（password 値に再展開されない）
+        assert "memo=see {password} field" in result
+
+    def test_unknown_placeholder_left_intact(
+        self, base_data: dict[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """登録されていないプレースホルダ ``{foo}`` はそのまま残す。"""
+        monkeypatch.setattr("ttmacro.path_resolver.BASE_DIR", tmp_path)
+        result = generate_ttl_content(base_data, "x={foo} y={name}", "ts", tmp_path)
+        assert "x={foo}" in result  # 未知プレースホルダはそのまま
+        assert "y=infra01" in result
+
 
 class TestResolveTemplatePath:
     """resolve_template_path のテスト。"""

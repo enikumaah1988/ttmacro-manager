@@ -1,9 +1,9 @@
 """TTL テンプレート読み込みとプレースホルダ展開。
 
 `{name}` `{hostname}` `{port}` 等のプレースホルダを行データで置換する。
-str.replace のループによる単純置換のため、置換値（例: memo）に
-``{password}`` のような文字列が含まれると誤置換される。
-（既存仕様維持。将来的に Jinja2 等への置換を検討）
+``re.sub`` による**単一パス置換**を採用し、置換値に他のプレースホルダ文字列が
+混入していても再走査されないことを保証する。
+（例: password に ``{memo}`` が含まれていても memo として再展開されない）
 """
 
 from __future__ import annotations
@@ -137,8 +137,8 @@ def generate_ttl_content(
         "{post_commands}": post_commands,
     }
 
-    content = template
-    for key, value in replacements.items():
-        content = content.replace(key, value)
-
-    return content
+    # 単一パス置換：登録済みプレースホルダだけを正規表現で一気にマッチさせ、
+    # 各マッチを 1 回だけ置換する。置換値の内側に ``{password}`` 等が
+    # 含まれていても、それは既に通過したマッチ箇所なので再展開されない。
+    pattern = re.compile("|".join(re.escape(key) for key in replacements))
+    return pattern.sub(lambda m: replacements[m.group(0)], template)
