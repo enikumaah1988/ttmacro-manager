@@ -123,7 +123,9 @@ pip install -e ".[dev]"
 pip install -e .
 ```
 
-インストール後、`ttmacro-generate` と `ttmacro-launcher` の 2 つのコマンドが PATH に追加されます。
+インストール後、仮想環境（`.venv`）を Activate した状態であれば、`ttmacro-generate` と `ttmacro-launcher` の 2 つをコマンドとして直接実行できます。（実体は `.venv\Scripts\` 配下に作られる shim exe です。Activate すると同フォルダがシェルの検索パス先頭に入るためコマンド名だけで起動できます。）
+
+Activate していない場合は `.venv\Scripts\ttmacro-generate.exe` のように直接フルパスで呼ぶこともできます。
 
 依存ライブラリ（openpyxl / ttkbootstrap / pyinstaller など）はすべて純 Python 実装なので、Visual Studio などのビルドツールは不要です。
 
@@ -313,13 +315,13 @@ Tera Termのログ設定は以下の優先順位で適用されます：
 
 5. **Pythonの実行エラー / コマンドが見つからない**
    - 確認事項：
-     - 仮想環境（.venv）が有効になっているか
+     - 仮想環境（.venv）が Activate 済みか（プロンプト先頭に `(.venv)` が付いているか）
      - 必要なライブラリがインストールされているか
-     - `ttmacro-generate` / `ttmacro-launcher` コマンドが PATH に通っているか
+     - `ttmacro-generate` / `ttmacro-launcher` の shim exe が `.venv\Scripts\` 配下に存在するか
    - 解決方法：
-     - `.venv\Scripts\activate`を実行
-     - `pip install -e ".[dev]"` を実行（インストール時に console scripts が登録される）
-     - 仮想環境を Activate しない場合は `.venv\Scripts\ttmacro-generate` のように直接呼ぶ
+     - `.venv\Scripts\activate` を実行（これでシェルの検索パスに `Scripts\` が入りコマンドが効く）
+     - `pip install -e ".[dev]"` を実行（インストール時に shim exe が `.venv\Scripts\` に作られる）
+     - Activate しない場合は `.venv\Scripts\ttmacro-generate.exe` のように直接フルパスで呼ぶ
 
 6. **Excelファイルの読み込みエラー**
    - 確認事項：
