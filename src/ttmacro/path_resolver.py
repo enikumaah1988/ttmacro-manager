@@ -1,7 +1,8 @@
 """TTL ファイルの出力先・相対パス計算。
 
-副作用（mkdir、書き込み権限テスト）を伴う関数と、
-純粋なパス計算関数が混在している（既存仕様に合わせて保持）。
+純粋なパス計算（``resolve_target_directory`` / ``calculate_relative_path``
+/ ``get_log_dir``）と、ディレクトリ作成＋書き込み権限テストの副作用
+（``ensure_writable``）を分離している。
 """
 
 from __future__ import annotations
@@ -15,22 +16,17 @@ if TYPE_CHECKING:
     from ttmacro.excel_loader import RowData
 
 
-def get_target_directory(data: RowData) -> Path:
-    """グループ階層に基づいて出力ディレクトリを決定する。
+def resolve_target_directory(data: RowData) -> Path:
+    """グループ階層に基づいて出力ディレクトリ"パス"を返す（純粋関数）。
 
-    副作用として、ディレクトリ作成と書き込み権限テストを行う。
-    ``group1`` が空欄の場合は ``OUTPUT_DIR`` 直下を返す（``group2`` /
-    ``group3`` だけの指定は無効）。
+    副作用なし。``group1`` が空欄の場合は ``OUTPUT_DIR`` 直下を返す
+    （``group2`` / ``group3`` だけの指定は無効）。
 
     Args:
         data: ``extract_row_data`` が返す行データ辞書。
 
     Returns:
-        作成済み（または既存）の出力ディレクトリ。
-
-    Raises:
-        PermissionError: ディレクトリへの書き込み権限がない場合。
-        RuntimeError: その他のディレクトリ作成エラー。
+        出力ディレクトリのパス（実在しない可能性あり）。
     """
     if not data["group1"]:
         return OUTPUT_DIR
@@ -40,7 +36,19 @@ def get_target_directory(data: RowData) -> Path:
         target_dir = target_dir / data["group2"]
         if data["group3"]:
             target_dir = target_dir / data["group3"]
+    return target_dir
 
+
+def ensure_writable(target_dir: Path) -> None:
+    """ディレクトリを作成し、書き込み権限テスト（``.write_test`` の touch）を行う。
+
+    Args:
+        target_dir: 確保したいディレクトリ。
+
+    Raises:
+        PermissionError: ディレクトリへの書き込み権限がない場合。
+        RuntimeError: その他のディレクトリ作成エラー。
+    """
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
         # 書き込み権限チェック（一時ファイルを作って消す）
@@ -53,8 +61,6 @@ def get_target_directory(data: RowData) -> Path:
         ) from e
     except Exception as e:
         raise RuntimeError(f"ディレクトリ作成エラー: {target_dir} - {e}") from e
-
-    return target_dir
 
 
 def calculate_relative_path(target_dir: Path) -> str:

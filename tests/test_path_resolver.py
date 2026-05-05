@@ -62,10 +62,10 @@ class TestGetLogDir:
         assert path_resolver.get_log_dir(target) == logs_dir / "home" / "prod"
 
 
-class TestGetTargetDirectory:
-    """get_target_directory のテスト。
+class TestResolveTargetDirectory:
+    """resolve_target_directory（純粋関数）のテスト。
 
-    OUTPUT_DIR を tmp_path に差し替えて、実際にディレクトリを作成する挙動も検証する。
+    副作用がないため tmp_path への mkdir は発生しないことも確認する。
     """
 
     @pytest.fixture
@@ -77,32 +77,55 @@ class TestGetTargetDirectory:
         return tmp_path
 
     def test_no_group_returns_output_dir(self, patched_output_dir: Path) -> None:
-        """group1 が空なら OUTPUT_DIR をそのまま返す（mkdir もしない）。"""
+        """group1 が空なら OUTPUT_DIR をそのまま返す。"""
         data = {"group1": "", "group2": "", "group3": ""}
-        assert path_resolver.get_target_directory(data) == patched_output_dir
+        assert path_resolver.resolve_target_directory(data) == patched_output_dir
 
     def test_group1_only(self, patched_output_dir: Path) -> None:
-        """group1 のみ指定で1階層作成。"""
+        """group1 のみ指定で 1 階層下のパスを返す（mkdir はしない）。"""
         data = {"group1": "envA", "group2": "", "group3": ""}
-        result = path_resolver.get_target_directory(data)
+        result = path_resolver.resolve_target_directory(data)
         assert result == patched_output_dir / "envA"
-        assert result.exists()
-        assert result.is_dir()
+        # 副作用なしのはず（mkdir されていない）
+        assert not result.exists()
 
     def test_full_three_levels(self, patched_output_dir: Path) -> None:
-        """group1/2/3 すべて指定で3階層作成。"""
+        """group1/2/3 すべて指定で 3 階層下のパスを返す。"""
         data = {"group1": "envA", "group2": "type1", "group3": "subA"}
-        result = path_resolver.get_target_directory(data)
+        result = path_resolver.resolve_target_directory(data)
         assert result == patched_output_dir / "envA" / "type1" / "subA"
-        assert result.exists()
+        assert not result.exists()
 
     def test_group2_without_group1_is_ignored(self, patched_output_dir: Path) -> None:
         """group1 が空なら子グループは無効（OUTPUT_DIR 直下に出力）。"""
         data = {"group1": "", "group2": "ignored", "group3": "ignored"}
-        assert path_resolver.get_target_directory(data) == patched_output_dir
+        assert path_resolver.resolve_target_directory(data) == patched_output_dir
 
     def test_group3_without_group2_is_ignored(self, patched_output_dir: Path) -> None:
         """group2 が空なら group3 も無効。"""
         data = {"group1": "envA", "group2": "", "group3": "ignored"}
-        result = path_resolver.get_target_directory(data)
+        result = path_resolver.resolve_target_directory(data)
         assert result == patched_output_dir / "envA"
+
+
+class TestEnsureWritable:
+    """ensure_writable（副作用関数）のテスト。"""
+
+    def test_creates_missing_directory(self, tmp_path: Path) -> None:
+        """存在しないディレクトリは parents 込みで作成される。"""
+        target = tmp_path / "a" / "b" / "c"
+        assert not target.exists()
+        path_resolver.ensure_writable(target)
+        assert target.is_dir()
+
+    def test_does_not_fail_on_existing_directory(self, tmp_path: Path) -> None:
+        """既存ディレクトリでも例外を出さない（exist_ok=True）。"""
+        target = tmp_path / "existing"
+        target.mkdir()
+        path_resolver.ensure_writable(target)
+        assert target.is_dir()
+
+    def test_cleans_up_write_test_file(self, tmp_path: Path) -> None:
+        """書き込み権限テスト用の ``.write_test`` は残らない。"""
+        path_resolver.ensure_writable(tmp_path)
+        assert not (tmp_path / ".write_test").exists()

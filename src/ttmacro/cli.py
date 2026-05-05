@@ -238,7 +238,8 @@ def generate_ttl_macros(args: argparse.Namespace) -> None:
 
                 # 行データの抽出と TTL 生成
                 data = excel_loader.extract_row_data(row)
-                target_dir = path_resolver.get_target_directory(data)
+                target_dir = path_resolver.resolve_target_directory(data)
+                path_resolver.ensure_writable(target_dir)
 
                 # テンプレ解決＋キャッシュ。失敗はその行だけスキップ。
                 try:
