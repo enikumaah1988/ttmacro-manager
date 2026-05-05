@@ -24,6 +24,7 @@ from typing import Any
 import ttkbootstrap as ttk  # ttkbootstrap が ttk を拡張：API は ttk 互換 + bootstyle 引数
 
 from ttmacro.config import BASE_DIR
+from ttmacro.logger import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -465,10 +466,8 @@ class LauncherApp:
 
 def main() -> None:
     """ランチャーアプリのエントリポイント。"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    # cli.py と同じ 'ttmacro' 親ロガー設定を使う（logs/generate.log にも残る）
+    setup_logging()
     # ttkbootstrap の Window はテーマ付きの tk.Tk サブクラス
     root = ttk.Window(themename="darkly")
     app = LauncherApp(root)
