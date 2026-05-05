@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 # -------- プロジェクト情報 --------
 [project]
 name = "ttmacro-manager"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tera Term TTL マクロを Excel 台帳から一括生成・起動するツール"
 readme = "README.md"
 requires-python = ">=3.12"
